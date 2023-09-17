@@ -1,0 +1,13 @@
+pub mod foobar;
+pub mod form_utils;
+pub mod package_info;
+pub mod schema_view;
+pub mod schematic_executor;
+pub mod schematic_selector;
+pub mod schematic_ui;
+pub mod schematics;
+pub mod schematics_details;
+pub mod settings;
+pub mod settings_utils;
+pub mod string_list_item;
+pub mod xwidget_builder;
