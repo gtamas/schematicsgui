@@ -1,6 +1,8 @@
-pub mod foobar;
+pub mod command_builder;
+pub mod default_widget_builder;
 pub mod form_utils;
 pub mod package_info;
+pub mod schema_parsing;
 pub mod schema_view;
 pub mod schematic_executor;
 pub mod schematic_selector;
@@ -10,4 +12,5 @@ pub mod schematics_details;
 pub mod settings;
 pub mod settings_utils;
 pub mod string_list_item;
+pub mod value_extractor;
 pub mod xwidget_builder;

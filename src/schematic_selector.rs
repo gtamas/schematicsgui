@@ -22,7 +22,7 @@ impl SchematicSelectorModel {
             collection_utils = Collection::new(&settings_util.read().schematics_collection);
             return collection_utils.list_schematic_names();
         } else {
-            vec!["".to_string()]
+            vec![String::default()]
         }
     }
 }

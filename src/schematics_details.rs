@@ -6,10 +6,13 @@ use relm4::{
     SimpleComponent,
 };
 
+use crate::command_builder::Param;
 use crate::package_info::{PackageInfoInput, PackageInfoModel};
 use crate::schema_view::{SchemaViewInput, SchemaViewModel};
-use crate::schematic_executor::SchematicExecutorModel;
-use crate::schematic_ui::{SchematicUiInput, SchematicUiModel};
+use crate::schematic_executor::{
+    SchematicExecutorInput, SchematicExecutorInputParams, SchematicExecutorModel,
+};
+use crate::schematic_ui::{SchematicUiInput, SchematicUiModel, SchematicUiOutput};
 use crate::schematics::Collection;
 use crate::settings_utils::SettingsData;
 
@@ -21,6 +24,7 @@ pub struct SchematicsDetailsModel {
     ui: Controller<SchematicUiModel>,
     executor: Controller<SchematicExecutorModel>,
     settings: Option<SettingsData>,
+    schematic: String,
 }
 
 impl SchematicsDetailsModel {
@@ -28,11 +32,11 @@ impl SchematicsDetailsModel {
         self.tab = 0;
     }
 
-    fn show_ui(&mut self) {
+    fn show_schema(&mut self) {
         self.tab = 1;
     }
 
-    fn show_schema(&mut self) {
+    fn show_ui(&mut self) {
         self.tab = 2;
     }
 
@@ -45,6 +49,7 @@ impl SchematicsDetailsModel {
 pub enum SchematicsDetailsInput {
     Show(Option<SettingsData>),
     ShowSchematic(String),
+    ShowExecutor(Vec<Param>),
 }
 
 #[derive(Debug)]
@@ -70,8 +75,8 @@ impl SimpleComponent for SchematicsDetailsModel {
           #[watch]
           set_current_page: Some(model.tab),
           append_page: (model.info.widget(), Some(&gtk::Label::new(Some("Package")))),
-          append_page: (model.ui.widget(), Some(&gtk::Label::new(Some("Interface")))),
           append_page: (model.schema.widget(), Some(&gtk::Label::new(Some("Schema")))),
+          append_page: (model.ui.widget(), Some(&gtk::Label::new(Some("Interface")))),
           append_page: (model.executor.widget(), Some(&gtk::Label::new(Some("Execute")))),
         }
     }
@@ -97,7 +102,7 @@ impl SimpleComponent for SchematicsDetailsModel {
         let schematic_ui = SchematicUiModel::builder().launch(true).forward(
             sender.input_sender(),
             |msg| match msg {
-                _ => SchematicsDetailsInput::Show(None),
+                SchematicUiOutput::Params(p) => SchematicsDetailsInput::ShowExecutor(p),
             },
         );
 
@@ -116,6 +121,7 @@ impl SimpleComponent for SchematicsDetailsModel {
             info,
             ui: schematic_ui,
             executor: schematic_executor,
+            schematic: String::default(),
         };
         let widgets = view_output!();
         ComponentParts { model, widgets }
@@ -133,6 +139,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .join(schematic.schema)
                     .canonicalize()
                     .unwrap();
+
                 self.schema
                     .sender()
                     .send(SchemaViewInput::Show(path.clone()))
@@ -144,6 +151,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .unwrap();
 
                 self.show_ui();
+                self.schematic = schematic_name.clone();
             }
             SchematicsDetailsInput::Show(data) => {
                 let pkg = data.clone().unwrap().schematics_package;
@@ -153,6 +161,17 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .unwrap();
                 self.settings = Some(data.clone().unwrap());
                 self.hidden = false
+            }
+            SchematicsDetailsInput::ShowExecutor(params) => {
+                self.executor
+                    .sender()
+                    .send(SchematicExecutorInput::Show(SchematicExecutorInputParams {
+                        params,
+                        schematic: self.schematic.clone(),
+                    }))
+                    .unwrap();
+
+                self.show_shell();
             }
         }
     }

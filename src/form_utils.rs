@@ -1,17 +1,17 @@
-use std::f64::MAX;
-
 use colors_transform::{Color, Rgb};
 use relm4::gtk::gdk::RGBA;
 use relm4::gtk::glib::{DateTime, GString};
-use relm4::gtk::prelude::{Cast, EntryBufferExtManual, FileExt, GtkWindowExt, IsA};
+use relm4::gtk::prelude::{
+    Cast, ComboBoxExtManual, EntryBufferExtManual, FileExt, GtkWindowExt, IsA,
+};
 use relm4::gtk::{
     traits::{
         BoxExt, ButtonExt, CheckButtonExt, ColorChooserExt, DialogExt, EditableExt, EntryExt,
-        FileChooserExt, OrientableExt, RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt,
-        WidgetExt,
+        FileChooserExt, OrientableExt, RangeExt, ScaleExt, TextBufferExt, TextViewExt,
+        ToggleButtonExt, WidgetExt,
     },
     Align, Box, Button, Dialog, Entry, EntryBuffer, FileChooserAction, FileChooserDialog,
-    FileFilter, Label, ResponseType,
+    FileFilter, Label, ResponseType, SpinButtonUpdatePolicy,
 };
 use relm4::gtk::{
     Adjustment, ApplicationWindow, Calendar, CheckButton, ColorButton, ColorChooserDialog,
@@ -19,9 +19,10 @@ use relm4::gtk::{
     ToggleButton, Window,
 };
 
-use crate::schematic_ui::{
-    ColorEntry, ColorEntryFormat, DateEntry, DirEntry, FileEntry, NumericEntry, NumericType,
-    OrientationType, Primitive, TextEntry, IconPositionType,
+use crate::schema_parsing::{
+    ChoiceEntry, ColorEntry, ColorEntryFormat, CurrentValuePosType, DateEntry, DirEntry, FileEntry,
+    IconPositionType, JustificationType, MenuEntry, NumericEntry, NumericValueType,
+    OrientationType, Primitive, TextEntry,
 };
 
 #[derive(Debug)]
@@ -32,14 +33,7 @@ impl FormUtils {
         FormUtils {}
     }
 
-    fn browse_button_with_entry(&self, input: &Entry, button: &Button) -> Box {
-        let form = Box::new(relm4::gtk::Orientation::Horizontal, 5);
-        form.append(input);
-        form.append(button);
-        form
-    }
-
-    fn get_adjustment(&self, options: NumericEntry) -> Adjustment {
+    fn get_adjustment(options: NumericEntry) -> Adjustment {
         Adjustment::new(
             options.initial_value.into(),
             options.min.into(),
@@ -52,19 +46,21 @@ impl FormUtils {
 
     fn format_date(format: String, date: &DateTime) -> GString {
         if format != "" {
-            return date.format(&format).unwrap_or(date.format("%Y-%m-%d").unwrap());
+            return date
+                .format(&format)
+                .unwrap_or(date.format("%Y-%m-%d").unwrap());
         }
         date.format_iso8601().unwrap()
     }
 
-     fn parse_color(color_str: String) -> RGBA {
+    fn parse_color(color_str: String) -> RGBA {
         match RGBA::parse(color_str) {
             Ok(c) => c,
             Err(_) => RGBA::new(0.0, 0.0, 0.0, 0.0),
         }
     }
 
-    fn format_color_str(format: ColorEntryFormat, rgba: &RGBA) -> String {
+    pub fn format_color_str(format: ColorEntryFormat, rgba: &RGBA) -> String {
         let color = Rgb::from(
             rgba.red() * 255.0,
             rgba.green() * 255.0,
@@ -82,6 +78,41 @@ impl FormUtils {
         rgba.to_string()
     }
 
+    fn get_menu_default(items: &Vec<String>, default: Option<Primitive>) -> u32 {
+        let mut index = 0;
+        if default.is_some() {
+            let d: String = default.unwrap().into();
+            index = items.iter().position(|r| r == &d).unwrap_or(0);
+        }
+
+        index as u32
+    }
+
+    fn get_string_default(default: Option<Primitive>) -> String {
+        let mut d: String = String::default();
+
+        if default.is_some() {
+            d = default.unwrap().into();
+        }
+
+        d
+    }
+
+    fn get_digits(options: &NumericEntry) -> i32 {
+        if options.value_type == NumericValueType::Float {
+            options.clone().precision.into()
+        } else {
+            0
+        }
+    }
+
+    pub fn browse_button_with_entry(&self, input: &Entry, button: &Button) -> Box {
+        let form = Box::new(relm4::gtk::Orientation::Horizontal, 5);
+        form.append(input);
+        form.append(button);
+        form
+    }
+
     pub fn label(&self, text: &str, name: &str, align: Option<Align>) -> Label {
         let label = Label::new(Some(&text));
         label.set_css_classes(&["label"]);
@@ -97,12 +128,14 @@ impl FormUtils {
         default: Option<Primitive>,
     ) -> Box {
         let opts = options.unwrap_or_default();
-        let adjustment = self.get_adjustment(opts.clone());
+        let adjustment = Self::get_adjustment(opts.clone());
 
+        let precision = Self::get_digits(&opts);
         let min_label = self.label(&opts.min.to_string(), "min", None);
-        let max_label = self.label(&opts.max.to_string(), "max", None);
-        let label = max_label.clone();
+        let max: f64 = opts.max.into();
+        let max_label = self.label(&format!("{:1$}", max, precision as usize), "max", None);
         let container = Box::default();
+
         container.set_orientation(Orientation::Horizontal);
         container.append(&min_label);
 
@@ -113,16 +146,21 @@ impl FormUtils {
         let slider = Scale::new(orientation, Some(&adjustment));
         slider.set_css_classes(&["slider"]);
         slider.set_widget_name(name);
+        let pos_type = opts.show_current.clone().into();
+
+        if opts.show_current != CurrentValuePosType::None {
+            slider.set_draw_value(true);
+            slider.set_value_pos(pos_type);
+        }
+
+        for mark in opts.marks {
+            slider.add_mark(mark.value, pos_type, mark.text.as_deref());
+        }
+
+        slider.set_digits(precision);
 
         // TODO: width from CSS!
         slider.set_hexpand(true);
-        slider.connect_value_changed(move |x| {
-            if opts.r#type == NumericType::Float {
-                label.clone().set_text(&format!("{:.2}", x.value()));
-            } else {
-                label.clone().set_text(&format!("{}", x.value() as i32));
-            }
-        });
 
         if default.is_some() {
             let value: f64 = default.unwrap().into();
@@ -131,6 +169,7 @@ impl FormUtils {
 
         container.append(&slider);
         container.append(&max_label);
+        container.set_css_classes(&["slider_input_container"]);
         container
     }
 
@@ -180,7 +219,9 @@ impl FormUtils {
             });
         });
 
-        self.browse_button_with_entry(&entry, &button)
+        let form = self.browse_button_with_entry(&entry, &button);
+        form.set_css_classes(&["file_input_container"]);
+        form
     }
 
     pub fn date_input(
@@ -199,8 +240,11 @@ impl FormUtils {
 
         if default.is_some() {
             default_date = Some(default.clone().unwrap().into());
-            buffer.set_text(Self::format_date(opts.format.clone(), &default_date.as_ref().unwrap()));
-          }
+            buffer.set_text(Self::format_date(
+                opts.format.clone(),
+                &default_date.as_ref().unwrap(),
+            ));
+        }
 
         button.set_icon_name("work-week");
         button.connect_clicked(move |button| {
@@ -223,7 +267,10 @@ impl FormUtils {
 
             if default.is_some() {
                 calendar.select_day(&default_date.as_ref().unwrap());
-                buffer.set_text(Self::format_date(opts.format.clone(), &default_date.as_ref().unwrap()));
+                buffer.set_text(Self::format_date(
+                    opts.format.clone(),
+                    &default_date.as_ref().unwrap(),
+                ));
             }
 
             calendar.connect_day_selected(move |c| {
@@ -240,6 +287,7 @@ impl FormUtils {
         });
 
         let form = self.browse_button_with_entry(&entry, &button);
+        form.set_css_classes(&["date_input_container"]);
         entry.set_buffer(&buffer_clone);
         entry.set_css_classes(&["date_input"]);
         entry.set_widget_name(name);
@@ -249,12 +297,15 @@ impl FormUtils {
     pub fn color_button(
         &self,
         name: &str,
-        _options: Option<ColorEntry>,
+        options: Option<ColorEntry>,
         default: Option<Primitive>,
     ) -> ColorButton {
+        let opts = options.unwrap_or_default();
         let button = ColorButton::new();
         button.set_css_classes(&["color_button"]);
         button.set_widget_name(name);
+        button.set_title(&opts.title);
+        button.set_modal(true);
 
         if default.is_some() {
             let color: String = default.unwrap().into();
@@ -279,11 +330,13 @@ impl FormUtils {
         let mut rgba: Option<RGBA> = None;
         let color: String;
 
-          if default.is_some() {
-                color = default.clone().unwrap().into();
-                rgba = Some(Self::parse_color(color));
-                buffer.set_text(Self::format_color_str(opts.format.clone(), &rgba.unwrap()));
-          }
+        if default.is_some() {
+            color = default.clone().unwrap().into();
+            rgba = Some(Self::parse_color(color));
+            buffer.set_text(Self::format_color_str(opts.format.clone(), &rgba.unwrap()));
+        }
+
+        let entry_clone = entry.clone();
 
         button.set_icon_name("color-picker");
         button.connect_clicked(move |button| {
@@ -294,12 +347,12 @@ impl FormUtils {
                 .unwrap()
                 .downcast::<ApplicationWindow>()
                 .unwrap();
-            let dialog = ColorChooserDialog::new(Some("Choose a color"), Some(&window));
+            let dialog = ColorChooserDialog::new(Some(&opts.title), Some(&window));
 
             dialog.set_use_alpha(opts.alpha);
 
-            if default.is_some() {
-                dialog.set_rgba(&rgba.unwrap());
+            if entry_clone.text() != "" {
+                dialog.set_rgba(&Self::parse_color(entry_clone.text().to_string()));
             }
 
             dialog.show();
@@ -317,6 +370,7 @@ impl FormUtils {
         let form = Box::new(relm4::gtk::Orientation::Horizontal, 5);
         form.append(&entry);
         form.append(&button);
+        form.set_css_classes(&["color_input_container"]);
         entry.set_buffer(&buffer_clone);
         entry.set_css_classes(&["color_input"]);
         entry.set_widget_name(name);
@@ -377,24 +431,25 @@ impl FormUtils {
         let entry = Entry::with_buffer(&buffer);
         entry.set_css_classes(&["text_input"]);
         entry.set_widget_name(name);
-        
-        if opts.icon != "" {
-          if opts.icon_position == IconPositionType::Start {
-             entry.set_primary_icon_activatable(false);
-             entry.set_primary_icon_name(Some(&opts.icon));
-          } else {
-            entry.set_secondary_icon_activatable(false);
-            entry.set_secondary_icon_name(Some(&opts.icon));
-          }
-        }
 
+        if opts.icon != "" {
+            if opts.icon_position == IconPositionType::Start {
+                entry.set_primary_icon_activatable(false);
+                entry.set_primary_icon_name(Some(&opts.icon));
+            } else {
+                entry.set_secondary_icon_activatable(false);
+                entry.set_secondary_icon_name(Some(&opts.icon));
+            }
+        }
+        entry.set_input_purpose(opts.purpose.into());
+        entry.set_input_hints(opts.hint.into());
         entry.set_truncate_multiline(true);
         entry.set_tooltip_markup(Some(&opts.tooltip));
         entry.set_placeholder_text(Some(&opts.placeholder));
         entry.set_max_length(opts.max_len);
         entry.set_overwrite_mode(opts.overwrite);
         EntryExt::set_alignment(&entry, opts.direction.into());
-       
+
         if default.is_some() {
             let d: String = default.unwrap().into();
             buffer.set_text(d);
@@ -417,6 +472,14 @@ impl FormUtils {
         entry.set_editable(true);
         entry.set_height_request(opts.height);
         entry.set_visible(true);
+        entry.set_input_purpose(opts.purpose.into());
+        entry.set_input_hints(opts.hint.into());
+
+        if opts.justify != JustificationType::None {
+            entry.set_justification(opts.justify.into());
+        }
+
+        entry.set_overwrite(opts.overwrite);
 
         if default.is_some() {
             let d: String = default.unwrap().into();
@@ -426,31 +489,68 @@ impl FormUtils {
         entry
     }
 
-    pub fn radio_group(&self, name: &str, items: &Vec<String>) -> Box {
+    pub fn radio_group(
+        &self,
+        name: &str,
+        items: &Vec<String>,
+        options: Option<MenuEntry>,
+        default: Option<Primitive>,
+    ) -> Box {
+        let opts = options.unwrap_or_default();
         let group = CheckButton::default();
         let container = Box::default();
-        container.set_orientation(Orientation::Vertical);
+
+        container.set_orientation(opts.orientation.into());
+
+        let d: String = Self::get_string_default(default);
 
         for value in items {
-            let widget = self.checkbox_or_radio(&name, Some(&group), None);
+            let mut active = false;
+
+            if &d == value {
+                active = true;
+            }
+
+            let widget =
+                self.checkbox_or_radio(&name, Some(&group), None, Some(Primitive::Bool(active)));
             widget.set_label(Some(value));
+
             container.append(&widget);
         }
 
+        container.set_css_classes(&["radio_group_container"]);
         container
     }
 
-    pub fn toggle_group(&self, name: &str, items: &Vec<String>) -> Box {
+    pub fn toggle_group(
+        &self,
+        name: &str,
+        items: &Vec<String>,
+        options: Option<MenuEntry>,
+        default: Option<Primitive>,
+    ) -> Box {
+        let opts = options.unwrap_or_default();
         let group = ToggleButton::default();
         let container = Box::default();
-        container.set_orientation(Orientation::Vertical);
+
+        container.set_orientation(opts.orientation.into());
+
+        let d: String = Self::get_string_default(default);
 
         for value in items {
-            let widget = self.toggle_button(&name, Some(&group), None);
+            let mut active = false;
+
+            if &d == value {
+                active = true;
+            }
+
+            let widget =
+                self.toggle_button(&name, Some(&group), None, Some(Primitive::Bool(active)));
             widget.set_label(&value);
             container.append(&widget);
         }
 
+        container.set_css_classes(&["toggle_group_container"]);
         container
     }
 
@@ -458,9 +558,17 @@ impl FormUtils {
         &self,
         name: &str,
         group: Option<&CheckButton>,
+        options: Option<ChoiceEntry>,
         default: Option<Primitive>,
     ) -> CheckButton {
-        let checkbox = CheckButton::new();
+        let opts = options.unwrap_or_default();
+        let checkbox = {
+            if opts.label != "" && !group.is_some() {
+                CheckButton::with_label(&opts.label)
+            } else {
+                CheckButton::new()
+            }
+        };
         checkbox.set_inconsistent(false);
         checkbox.set_widget_name(name);
         if group.is_some() {
@@ -471,8 +579,7 @@ impl FormUtils {
         }
 
         if default.is_some() {
-            let d = default.unwrap().into();
-            checkbox.set_active(d);
+            checkbox.set_active(default.unwrap().into());
         }
 
         checkbox
@@ -482,9 +589,17 @@ impl FormUtils {
         &self,
         name: &str,
         group: Option<&ToggleButton>,
+        options: Option<ChoiceEntry>,
         default: Option<Primitive>,
     ) -> ToggleButton {
-        let button = ToggleButton::new();
+        let opts = options.unwrap_or_default();
+        let button = {
+            if opts.label != "" && !group.is_some() {
+                ToggleButton::with_label(&opts.label)
+            } else {
+                ToggleButton::new()
+            }
+        };
         button.set_widget_name(name);
         button.set_css_classes(&["toggle_button", "button"]);
         if group.is_some() {
@@ -492,17 +607,16 @@ impl FormUtils {
         }
 
         if default.is_some() {
-            let d = default.unwrap().into();
-            button.set_active(d);
+            button.set_active(default.unwrap().into());
         }
 
         button
     }
 
-    pub fn switch(&self, css_class: &str, name: &str, default: Option<Primitive>) -> Switch {
+    pub fn switch(&self, name: &str, default: Option<Primitive>) -> Switch {
         let switch = Switch::new();
         switch.set_widget_name(name);
-        switch.set_css_classes(&[css_class]);
+        switch.set_css_classes(&["switch"]);
         switch.set_hexpand(false);
 
         if default.is_some() {
@@ -515,42 +629,25 @@ impl FormUtils {
 
     pub fn numeric_input(
         &self,
-        css_class: &str,
         name: &str,
-        min: Option<f64>,
-        max: Option<f64>,
-        stepping: Option<f64>,
+        options: Option<NumericEntry>,
         default: Option<Primitive>,
     ) -> SpinButton {
-        let adjustment = Adjustment::new(
-            0.0,
-            min.unwrap_or(0.0),
-            max.unwrap_or(MAX),
-            stepping.unwrap_or(1.0),
-            5.0,
-            0.0,
-        );
-        let number_input = SpinButton::new(Some(&adjustment), 0.001, {
-            if default.is_some() {
-                match default.clone().unwrap() {
-                    Primitive::Float(_) => 2,
-                    _ => 0,
-                }
-            } else {
-                0
-            }
-        });
+        let opts = options.unwrap_or_default();
+        let adjustment = Self::get_adjustment(opts.clone());
+        let number_input =
+            SpinButton::new(Some(&adjustment), 0.001, Self::get_digits(&opts) as u32);
         number_input.set_width_chars(10);
         number_input.set_max_width_chars(10);
         number_input.set_widget_name(name);
-        number_input.set_css_classes(&[css_class]);
+        number_input.set_css_classes(&["numeric"]);
+        number_input.set_numeric(true);
+        number_input.set_wrap(opts.wrap);
+        number_input.set_snap_to_ticks(true);
+        number_input.set_update_policy(SpinButtonUpdatePolicy::IfValid);
 
         if default.is_some() {
-            let d = match default.unwrap() {
-                Primitive::Float(x) => x,
-                Primitive::Int(x) => f64::from(x),
-                _ => 0.0,
-            };
+            let d = default.unwrap().into();
             number_input.set_value(d);
         }
 
@@ -559,11 +656,12 @@ impl FormUtils {
 
     pub fn dropdown(
         &self,
-        css_class: &str,
         name: &str,
         items: &Vec<String>,
+        options: Option<MenuEntry>,
         default: Option<Primitive>,
     ) -> DropDown {
+        let opts = options.unwrap_or_default();
         let dropdown = DropDown::from_strings(
             items
                 .iter()
@@ -573,26 +671,34 @@ impl FormUtils {
         );
 
         dropdown.set_widget_name(name);
-        dropdown.set_css_classes(&[css_class]);
+        dropdown.set_css_classes(&["dropdown"]);
 
-        if default.is_some() {
-            let d: String = default.unwrap().into();
-            let index = items.iter().position(|r| r == &d).unwrap_or(0);
-            dropdown.set_selected(index as u32);
+        if opts.searchable {
+            dropdown.set_enable_search(true);
         }
+
+        dropdown.set_selected(Self::get_menu_default(items, default));
 
         dropdown
     }
 
-    pub fn combobox_text(&self, css_class: &str, name: &str, items: Vec<String>) -> ComboBoxText {
+    pub fn combobox_text(
+        &self,
+        name: &str,
+        items: &Vec<String>,
+        options: Option<MenuEntry>,
+        default: Option<Primitive>,
+    ) -> ComboBoxText {
         let combo = ComboBoxText::with_entry();
 
         for (i, el) in items.iter().enumerate() {
             combo.append_text(&el);
         }
 
+        combo.set_active(Some(Self::get_menu_default(items, default)));
+
         combo.set_widget_name(name);
-        combo.set_css_classes(&[css_class]);
+        combo.set_css_classes(&["combo"]);
         combo
     }
 
