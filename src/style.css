@@ -1,0 +1,193 @@
+window {
+  border: none;
+  color: black;
+  font-family: "Verdana", san-serif;
+  font-size: 1em;
+  font-style: normal;
+}
+
+
+.ui {
+  margin: 0.5em;
+  min-width: 585px;
+}
+
+.ui_container {
+  border: none;
+}
+
+/* Labels */
+
+.label,
+.label_title,
+.label_right {
+  font-weight: bold;
+  margin: 0.5em 0 0.5em 0;
+  padding-left: 0.5em;
+}
+
+.label {
+  border-left: solid 5px rgb(167, 167, 167);
+  border-bottom: none;
+}
+
+.label_right {
+  border: none;
+  min-width: 0;
+}
+
+.label_title {
+  font-size: 1.5em;
+  border: none;
+  text-transform: uppercase;
+}
+
+/* Buttons */
+
+button {
+  border-radius: 0;
+  border: solid 1px #dedede;
+  min-width: 75px;
+}
+
+button:hover {
+  background: #dedede;
+  color: black;
+}
+
+.row_button {
+  margin: 0 0.5em 0 0.5em;
+}
+
+.action {
+  margin: 1em 0.5em 0 0;
+}
+
+.action_icon {
+    min-width: 25px;
+    min-height: 10px;
+}
+
+.action:hover, .action_icon:hover {
+  border: dashed 1px rgb(168, 168, 168);
+  background: orange;
+  color: white;
+
+}
+
+button.button.action.text-button {
+  margin: 0.5em;
+}
+
+.row_button {
+  min-height: 20px;
+}
+
+/* Text Input */
+
+.text_input,
+.color_input,
+.date_input,
+.numeric_input,
+.textarea_input {
+  border: solid 1px silver;
+  border-radius: 0;
+  margin: 0.5em 0 0.5em 0;
+  padding-left: 0.5em;
+}
+
+.textarea_input {
+  padding: 0.5em;
+}
+
+.text_input:hover,
+.color_input:hover,
+.date_input:hover,
+.numeric_input:hover,
+.textarea_input:hover {
+  background: #dedede;
+}
+
+/* Checkbutton */
+
+checkbutton check:checked,
+checkbutton radio:checked,
+.toggle_button:checked,
+  switch:checked {
+  background: orange;
+}
+
+
+/* Togglebutton */
+
+.toggle_button:checked {
+  color: black;
+}
+
+.toggle_button {
+  margin: 0 0 0.5em 0;
+}
+
+.task_output, .task_error {
+  background: black;
+  color: rgb(122,248,79);
+  border: inset 2px silver;
+}
+
+/* Spinbutton */
+
+spinbutton button.down:hover,
+spinbutton button.up:hover {
+  background: orange;
+  color: white;
+}
+
+spinbutton button.down,
+spinbutton button.up {
+  color: black;
+}
+
+scale trough highlight {
+  background: orange;
+  border: solid 1px orange;
+}
+
+.slider_input_container label {
+  margin-top: 1em;
+}
+
+/* Color chooser */
+
+.colorchooser .text-button,
+.settings_dialog .text-button {
+  border-radius: 0;
+  border: solid 1px #dedede;
+  min-width: 75px;
+  background: rgb(246,245,244);
+  margin: 0.5em;
+  color: black;
+}
+
+.colorchooser .text-button:hover,
+.settings_dialog .text-button:hover {
+  color: white;
+  background: orange;
+}
+
+.settings_dialog .text-button {
+  margin: 0.5em 0.25em 0.5em 0;
+}
+
+.settings_container {
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+}
+
+tabs {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 1) 36%, rgba(255, 186, 0, 1) 100%);
+}
+
+.settings_dialog {
+  background: white;
+}
+

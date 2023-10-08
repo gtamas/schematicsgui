@@ -78,9 +78,10 @@ impl SimpleComponent for SettingsModel {
         gtk::Dialog {
             set_title: Some("Settings"),
             set_default_height: 200,
-            set_default_width: 400,
+            set_default_width: 600,
             set_modal: true,
             set_destroy_with_parent: true,
+            set_css_classes: &["settings_dialog"],
             #[watch]
             set_visible: !model.hidden,
             add_button: ("Save", gtk::ResponseType::Apply),
@@ -88,19 +89,22 @@ impl SimpleComponent for SettingsModel {
             gtk::Box {
               set_orientation: gtk::Orientation::Horizontal,
               set_margin_top: 10,
+              set_css_classes: &["settings_container"],
               gtk::Grid {
-                set_row_spacing: 10,
-                set_column_spacing: 10,
+                set_row_spacing: 5,
+                set_column_spacing: 5,
                 set_orientation: gtk::Orientation::Horizontal,
-                attach[ 0, 0, 1, 1]: &FormUtils::new().label("node", "nodeLabel", None),
+                attach[ 0, 0, 1, 1]: &FormUtils::new().label("node", "nodeLabel", None, Some(vec! ["label_right"])),
                 attach[ 1, 0, 1, 1]: node_location = &gtk::Entry {
                   set_widget_name: "nodeInput",
-                  set_css_classes: &["inputText"],
+                  set_hexpand: true,
+                  set_css_classes: &["inputText", "text_input"],
                   set_buffer: &model.node,
                 },
                 attach[ 2, 0, 1, 1]: browse_node_button = &gtk::Button {
-                  set_label: "browse",
-                  set_css_classes: &["node_browse_button", "button"],
+                  set_icon_name: "document-open",
+                  set_tooltip: "Browse file",
+                  set_css_classes: &["node_browse_button", "button", "action_icon"],
                   connect_clicked[sender, root] => move |_| {
                     let dialog = FormUtils::new().file_chooser("Node binary",&root,true,Some("node"));
                     let send = sender.clone();
@@ -120,15 +124,16 @@ impl SimpleComponent for SettingsModel {
                   }
                 },
 
-                attach[ 0, 1, 1, 1]:  &FormUtils::new().label("schematics collection", "schematicsCollLabel", None),
+                attach[ 0, 1, 1, 1]:  &FormUtils::new().label("schematics collection", "schematicsCollLabel", None, Some(vec! ["label_right"])),
                 attach[1, 1, 1, 1]: schematics_location = &gtk::Entry {
                   set_widget_name: "schematicsColInput",
-                  set_css_classes: &["inputText"],
+                  set_css_classes: &["inputText",  "text_input"],
                   set_buffer: &model.collection,
                 },
                 attach[ 2, 1, 1, 1]: schematics_browse_button = &gtk::Button {
-                  set_label: "browse",
-                  set_css_classes: &["schematics_browse_button", "button"],
+                  set_icon_name: "document-open",
+                  set_tooltip: "Browse file",
+                  set_css_classes: &["schematics_browse_button", "button", "action_icon"],
                   connect_clicked[sender, root] => move |_| {
                     let dialog = FormUtils::new().file_chooser("Schematics collection",&root,true,Some("collection.json"));
                     let send = sender.clone();
@@ -148,15 +153,16 @@ impl SimpleComponent for SettingsModel {
                   }
                 },
 
-                attach[ 0, 2, 1, 1]:  &FormUtils::new().label("Schematics package", "schematicsPkgLabel", None),
+                attach[ 0, 2, 1, 1]:  &FormUtils::new().label("Schematics package", "schematicsPkgLabel", None, Some(vec! ["label_right"])),
                 attach[1, 2, 1, 1]: package_location = &gtk::Entry {
                   set_widget_name: "schematicsPkgInput",
-                  set_css_classes: &["inputText"],
+                  set_css_classes: &["inputText",  "text_input"],
                   set_buffer: &model.package,
                 },
                 attach[ 2, 2, 1, 1]: package_browse_button = &gtk::Button {
-                  set_label: "browse",
-                  set_css_classes: &["schematics_browse_button", "button"],
+                  set_icon_name: "document-open",
+                  set_tooltip: "Browse file",
+                  set_css_classes: &["schematics_browse_button", "button",  "action_icon"],
                   connect_clicked[sender, root] => move |_| {
                     let dialog = FormUtils::new().file_chooser("Schematics package",&root,true,Some("package.json"));
                     let send = sender.clone();
@@ -176,15 +182,16 @@ impl SimpleComponent for SettingsModel {
                   }
                 },
 
-                attach[ 0, 3, 1, 1]:  &FormUtils::new().label("schematics runner", "schematicsRunnerLabel", None),
+                attach[ 0, 3, 1, 1]:  &FormUtils::new().label("schematics runner", "schematicsRunnerLabel", None, Some(vec! ["label_right"])),
                 attach[1, 3, 1, 1]: schematics_runner = &gtk::Entry {
                   set_widget_name: "schematicsRunnerInput",
-                  set_css_classes: &["inputText"],
+                  set_css_classes: &["inputText", "text_input"],
                   set_buffer: &model.schematic_runner,
                 },
                  attach[ 2, 3, 1, 1]: runner_browse_button = &gtk::Button {
-                  set_label: "browse",
-                  set_css_classes: &["runner_browse_button", "button"],
+                  set_icon_name: "document-open",
+                  set_tooltip: "Browse file",
+                  set_css_classes: &["runner_browse_button", "button", "action_icon"],
                   connect_clicked[sender, root] => move |_| {
                     let dialog = FormUtils::new().file_chooser("Schematics runner",&root,true,None);
                     let send = sender.clone();

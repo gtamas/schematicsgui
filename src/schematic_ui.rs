@@ -34,15 +34,17 @@ impl SchematicUiModel {
     fn build_form(&self, parent: &gtk::Frame, json: &serde_json::Value) -> Option<gtk::Box> {
         let utils = FormUtils::new();
         let form = gtk::Box::new(relm4::gtk::Orientation::Vertical, 5);
-        form.set_halign(gtk::Align::Start);
+        form.set_css_classes(&["ui"]);
+        form.set_hexpand(true);
 
         match json["$id"].as_str() {
             Some(_) => {
                 let empty = serde_json::Map::new();
                 form.append(&utils.label(
-                    json["title"].as_str().unwrap_or(""),
+                    &json["title"].as_str().unwrap_or("").replace("schema", ""),
                     "schema",
-                    Some(Align::Start),
+                    None,
+                    Some(vec! ["label_title"])
                 ));
                 let props = json["properties"].as_object().unwrap_or(&empty);
                 let keys = props.keys();
@@ -52,9 +54,8 @@ impl SchematicUiModel {
                     match serde_json::from_value::<SchemaProp>(prop_value) {
                         Ok(prop) => {
                             let label_text = prop.description.clone().unwrap_or(String::default());
-                            form.append(&utils.label(&label_text, key, Some(Align::Start)));
+                            form.append(&utils.label(&label_text, key, None, None));
                             if prop.x_widget.is_some() {
-                                // println!("{:?}", prop);
                                 let builder = XWidgetBuilder::new(&prop, key.clone());
 
                                 form.append(&builder.get_widget());
@@ -129,6 +130,7 @@ impl Component for SchematicUiModel {
 
           append: frame = &gtk::Frame {
             set_hexpand: true,
+            set_css_classes: &["ui_container"],
             #[track = "model.changed(SchematicUiModel::json())"]
             set_child: Some(&model.build_form(&frame, &model.json).unwrap())
           },
@@ -138,7 +140,10 @@ impl Component for SchematicUiModel {
             set_visible: !model.hidden,
             connect_clicked[sender] => move |_| {
              sender.input(SchematicUiInput::Submit);
-            }
+            },
+            set_halign: Align::End,
+            set_valign: Align::Start,
+            set_css_classes: &["action"]
           }
 
 

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use relm4::gtk::prelude::{TextBufferExt, TextViewExt, WidgetExt};
+use relm4::gtk::Orientation;
+use relm4::gtk::prelude::{TextBufferExt, TextViewExt, OrientableExt, WidgetExt};
 use relm4::{gtk, ComponentParts, ComponentSender, SimpleComponent};
 use serde_json::Value;
 
@@ -9,6 +10,7 @@ use crate::schematics::Collection;
 pub struct SchemaViewModel {
     hidden: bool,
     json: gtk::TextBuffer,
+    title: String
 }
 
 #[derive(Debug)]
@@ -29,19 +31,32 @@ impl SimpleComponent for SchemaViewModel {
         #[root]
         gtk::Box {
           set_hexpand: true,
+          set_vexpand: true,
+          set_orientation: Orientation::Vertical,
           gtk::Label {
             #[watch]
             set_visible: model.hidden,
-            set_hexpand: true,
+            set_vexpand: true,
             set_halign: gtk::Align::Center,
             set_label: "Please, select a schematic!"
           },
+          gtk::Label {
+            #[watch]
+            set_visible: !model.hidden,
+            set_halign: gtk::Align::Start,
+            set_css_classes: &["label", "label_title"],
+            #[watch]
+            set_label: &model.title
+          },
           gtk::ScrolledWindow {
+           #[watch]
+            set_visible: !model.hidden,
           set_hscrollbar_policy: gtk::PolicyType::Never,
           gtk::TextView {
             #[watch]
             set_visible: !model.hidden,
             set_hexpand: true,
+            set_vexpand: true,
             set_buffer: Some(&model.json)
           }
           }
@@ -55,6 +70,7 @@ impl SimpleComponent for SchemaViewModel {
     ) -> ComponentParts<Self> {
         let model = SchemaViewModel {
             hidden: true,
+            title: String::from(""),
             json: gtk::TextBuffer::default(),
         };
         let widgets = view_output!();
@@ -67,6 +83,7 @@ impl SimpleComponent for SchemaViewModel {
                 let schema: Value =
                     serde_json::from_str(&Collection::read_str(schema_path.to_str().unwrap()))
                         .unwrap();
+                self.title = schema["title"].as_str().unwrap_or("").to_string();
                 self.json
                     .set_text(&serde_json::to_string_pretty(&schema).unwrap());
                 self.hidden = false

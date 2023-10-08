@@ -98,7 +98,7 @@ impl CommandBuilder {
         self.params.clone()
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_params_string(&self) -> String {
         self.params
             .clone()
             .iter()

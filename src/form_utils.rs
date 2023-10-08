@@ -16,7 +16,7 @@ use relm4::gtk::{
 use relm4::gtk::{
     Adjustment, ApplicationWindow, Calendar, CheckButton, ColorButton, ColorChooserDialog,
     ComboBoxText, DropDown, Orientation, Scale, SpinButton, Switch, TextBuffer, TextView,
-    ToggleButton, Window,
+    ToggleButton, Window, Justification, WrapMode, EntryIconPosition
 };
 
 use crate::schema_parsing::{
@@ -113,11 +113,24 @@ impl FormUtils {
         form
     }
 
-    pub fn label(&self, text: &str, name: &str, align: Option<Align>) -> Label {
+    pub fn label(&self, text: &str, name: &str, align: Option<Justification>, css: Option<Vec<&str>>) -> Label {
         let label = Label::new(Some(&text));
-        label.set_css_classes(&["label"]);
+        let mut css_classes = css.unwrap_or(vec! []);
+        let mut css_default = vec! ["label"];
+        css_classes.append(&mut css_default);
+        let alignment = align.unwrap_or(Justification::Left);
+        label.set_css_classes(&css_classes);
         label.set_widget_name(name);
-        label.set_halign(align.unwrap_or(Align::End));
+        
+        if alignment == Justification::Left {
+           label.set_xalign(0.0);
+        } else if alignment == Justification::Right {
+           label.set_xalign(1.0);
+        } else {
+           label.set_xalign(0.5);
+        }
+       
+        label.set_justify(align.unwrap_or(Justification::Left));
         label
     }
 
@@ -131,10 +144,13 @@ impl FormUtils {
         let adjustment = Self::get_adjustment(opts.clone());
 
         let precision = Self::get_digits(&opts);
-        let min_label = self.label(&opts.min.to_string(), "min", None);
+        let min_label = self.label(&opts.min.to_string(), "min", None, None);
         let max: f64 = opts.max.into();
-        let max_label = self.label(&format!("{:1$}", max, precision as usize), "max", None);
+        let max_label = self.label(&format!("{:1$}", max, precision as usize), "max", None, None);
         let container = Box::default();
+
+        max_label.remove_css_class("label");
+        min_label.remove_css_class("label");
 
         container.set_orientation(Orientation::Horizontal);
         container.append(&min_label);
@@ -159,7 +175,6 @@ impl FormUtils {
 
         slider.set_digits(precision);
 
-        // TODO: width from CSS!
         slider.set_hexpand(true);
 
         if default.is_some() {
@@ -170,6 +185,8 @@ impl FormUtils {
         container.append(&slider);
         container.append(&max_label);
         container.set_css_classes(&["slider_input_container"]);
+        container.set_valign(Align::Baseline);
+         container.set_halign(Align::Baseline);
         container
     }
 
@@ -186,9 +203,17 @@ impl FormUtils {
         }
 
         let entry = self.text_input(name, None, None);
+        entry.set_hexpand(true);
         let buffer = entry.buffer();
 
-        let button = self.browse_button("file");
+        let button = self.action_button("file", Some("document-open"));
+        button.set_tooltip_text({
+          if is_file {
+            Some("Click to browse files")
+          } else {
+            Some("Click to browse directories")
+          }
+         });
         button.connect_clicked(move |b: &Button| {
             let buffer = buffer.clone();
             let window = b.root().unwrap().downcast::<ApplicationWindow>().unwrap();
@@ -236,7 +261,7 @@ impl FormUtils {
         let entry = Entry::new();
         let buffer = EntryBuffer::default();
         let buffer_clone = buffer.clone();
-        let button = self.browse_button("date");
+        let button = self.action_button("date", Some("work-week"));
 
         if default.is_some() {
             default_date = Some(default.clone().unwrap().into());
@@ -246,7 +271,6 @@ impl FormUtils {
             ));
         }
 
-        button.set_icon_name("work-week");
         button.connect_clicked(move |button| {
             let buffer = buffer.clone();
             let opts = opts.clone();
@@ -257,7 +281,9 @@ impl FormUtils {
                 .unwrap();
             let dialog = Dialog::new();
             dialog.set_title(Some("Select a date"));
-            dialog.add_button("OK", ResponseType::Ok);
+            let button = dialog.add_button("OK", ResponseType::Ok);
+            button.add_css_class("button");
+            button.add_css_class("action");
             dialog.set_modal(true);
             dialog.set_parent(&window);
             dialog.set_transient_for(Some(&window));
@@ -290,6 +316,7 @@ impl FormUtils {
         form.set_css_classes(&["date_input_container"]);
         entry.set_buffer(&buffer_clone);
         entry.set_css_classes(&["date_input"]);
+        entry.set_hexpand(true);
         entry.set_widget_name(name);
         form
     }
@@ -306,6 +333,8 @@ impl FormUtils {
         button.set_widget_name(name);
         button.set_title(&opts.title);
         button.set_modal(true);
+        button.set_halign(Align::End);
+        button.set_valign(Align::Start);
 
         if default.is_some() {
             let color: String = default.unwrap().into();
@@ -326,7 +355,7 @@ impl FormUtils {
         let entry = Entry::new();
         let buffer = EntryBuffer::default();
         let buffer_clone = buffer.clone();
-        let button = self.browse_button("color");
+        let button = self.action_button("color", Some("color-picker"));
         let mut rgba: Option<RGBA> = None;
         let color: String;
 
@@ -338,7 +367,6 @@ impl FormUtils {
 
         let entry_clone = entry.clone();
 
-        button.set_icon_name("color-picker");
         button.connect_clicked(move |button| {
             let buffer = buffer.clone();
             let opts = opts.clone();
@@ -368,11 +396,13 @@ impl FormUtils {
         });
 
         let form = Box::new(relm4::gtk::Orientation::Horizontal, 5);
+        form.set_hexpand(true);
         form.append(&entry);
         form.append(&button);
         form.set_css_classes(&["color_input_container"]);
         entry.set_buffer(&buffer_clone);
         entry.set_css_classes(&["color_input"]);
+        entry.set_hexpand(true);
         entry.set_widget_name(name);
         form
     }
@@ -401,14 +431,18 @@ impl FormUtils {
             title,
             Some(parent),
             action,
-            &[
-                ("Cancel", ResponseType::Cancel),
-                ("Select", ResponseType::Accept),
-            ],
+            &[]
         );
         let filter = FileFilter::new();
         filter.add_pattern(&pattern);
         dialog.set_filter(&filter);
+        let cancel_button = dialog.add_button("Cancel", ResponseType::Cancel);
+        cancel_button.add_css_class("button");
+        cancel_button.add_css_class("action");
+        let select_button = dialog.add_button("Select", ResponseType::Accept);
+        select_button.add_css_class("button");
+        select_button.add_css_class("action");
+        dialog.add_css_class("file_chooser");
         dialog
     }
 
@@ -420,12 +454,31 @@ impl FormUtils {
         button
     }
 
+     pub fn action_button(&self, name: &str, icon: Option<&str>) -> Button {
+        let button = Button::default();
+        button.set_css_classes(&["button", {
+          if icon.is_some() {
+            "action_icon"
+          } else {
+            "action"
+          }
+        }]);
+        
+        if icon.is_some() {
+          button.set_icon_name(icon.unwrap());
+        }
+
+        button.set_widget_name(name);
+        button
+    }
+
     pub fn text_input(
         &self,
         name: &str,
         options: Option<TextEntry>,
         default: Option<Primitive>,
     ) -> Entry {
+        // TODO: implement hint_text!
         let opts = options.unwrap_or_default();
         let buffer = EntryBuffer::default();
         let entry = Entry::with_buffer(&buffer);
@@ -445,6 +498,13 @@ impl FormUtils {
         entry.set_input_hints(opts.hint.into());
         entry.set_truncate_multiline(true);
         entry.set_tooltip_markup(Some(&opts.tooltip));
+        entry.set_icon_tooltip_markup({
+          if opts.icon_position == IconPositionType::Start {
+            EntryIconPosition::Primary
+          } else {
+            EntryIconPosition::Secondary
+          }
+        }, Some(&opts.tooltip));
         entry.set_placeholder_text(Some(&opts.placeholder));
         entry.set_max_length(opts.max_len);
         entry.set_overwrite_mode(opts.overwrite);
@@ -464,6 +524,7 @@ impl FormUtils {
         options: Option<TextEntry>,
         default: Option<Primitive>,
     ) -> TextView {
+         // TODO: implement all relevant options from text_input!
         let opts = options.unwrap_or_default();
         let buffer = TextBuffer::default();
         let entry = TextView::with_buffer(&buffer);
@@ -474,6 +535,7 @@ impl FormUtils {
         entry.set_visible(true);
         entry.set_input_purpose(opts.purpose.into());
         entry.set_input_hints(opts.hint.into());
+        entry.set_wrap_mode(WrapMode::Word);
 
         if opts.justify != JustificationType::None {
             entry.set_justification(opts.justify.into());
@@ -601,7 +663,9 @@ impl FormUtils {
             }
         };
         button.set_widget_name(name);
-        button.set_css_classes(&["toggle_button", "button"]);
+        button.set_halign(Align::End);
+        button.set_valign(Align::Start);
+        button.set_css_classes(&["toggle_button", "button", "action"]);
         if group.is_some() {
             button.set_group(group);
         }
@@ -617,7 +681,8 @@ impl FormUtils {
         let switch = Switch::new();
         switch.set_widget_name(name);
         switch.set_css_classes(&["switch"]);
-        switch.set_hexpand(false);
+        switch.set_halign(Align::End);
+        switch.set_valign(Align::Start);
 
         if default.is_some() {
             let d = default.unwrap().into();
@@ -640,7 +705,7 @@ impl FormUtils {
         number_input.set_width_chars(10);
         number_input.set_max_width_chars(10);
         number_input.set_widget_name(name);
-        number_input.set_css_classes(&["numeric"]);
+        number_input.set_css_classes(&["numeric_input"]);
         number_input.set_numeric(true);
         number_input.set_wrap(opts.wrap);
         number_input.set_snap_to_ticks(true);
