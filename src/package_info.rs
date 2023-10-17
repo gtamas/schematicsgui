@@ -1,5 +1,5 @@
-use relm4::gtk::Justification;
 use relm4::gtk::prelude::{EntryBufferExtManual, GridExt, OrientableExt, WidgetExt};
+use relm4::gtk::Justification;
 use relm4::{gtk, ComponentParts, ComponentSender, SimpleComponent};
 
 use crate::form_utils::FormUtils;

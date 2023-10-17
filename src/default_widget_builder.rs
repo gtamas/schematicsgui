@@ -3,7 +3,7 @@ use relm4::gtk::{Box, Orientation, Widget};
 
 use crate::form_utils::FormUtils;
 use crate::schema_parsing::{
-    ChoiceEntry, DateEntry, FileEntry, MenuEntry, NumericEntry, SchemaProp, TextEntry,
+    ChoiceEntry, DateEntry, FsEntry, MenuEntry, NumericEntry, SchemaProp, TextEntry,
 };
 
 pub struct DefaultWidgetBuilder {
@@ -28,7 +28,7 @@ impl DefaultWidgetBuilder {
             } else if self.prop.format.is_some() {
                 let format = self.prop.format.as_deref().unwrap();
                 if format == "path" {
-                    return self.get_file_input(FileEntry::default()).upcast();
+                    return self.get_file_input(FsEntry::default()).upcast();
                 } else if format == "date" {
                     return self.get_date_input(DateEntry::default()).upcast();
                 }
@@ -65,7 +65,7 @@ impl DefaultWidgetBuilder {
         empty
     }
 
-    fn get_file_input(&self, options: FileEntry) -> Widget {
+    fn get_file_input(&self, options: FsEntry) -> Widget {
         self.utils
             .file_input(&self.field, Some(options), None)
             .upcast()

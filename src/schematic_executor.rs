@@ -1,17 +1,23 @@
-use relm4::gtk::prelude::{
-    BoxExt, ButtonExt, EntryBufferExtManual, EntryExt, OrientableExt, TextBufferExt, TextViewExt,
-    WidgetExt, DisplayExt,
-};
-use relm4::gtk::{EntryBuffer, TextBuffer, Align};
-use relm4::{gtk, ComponentParts, ComponentSender, Component};
-use std::process::{Command, Output};
 use crate::command_builder::{CommandBuilder, Param};
+use crate::form_utils::FormUtils;
+use crate::impl_validation;
+use crate::settings_utils::SettingsData;
+use crate::traits::Validator;
+use relm4::gtk::prelude::{
+    BoxExt, ButtonExt, Cast, DialogExt, DisplayExt, EditableExt, EntryBufferExtManual, EntryExt,
+    FileChooserExt, FileExt, GtkWindowExt, OrientableExt, TextBufferExt, TextViewExt, WidgetExt,
+};
+use relm4::gtk::{Align, EntryBuffer, ResponseType, TextBuffer, Window};
+use relm4::RelmWidgetExt;
+use relm4::{gtk, Component, ComponentParts, ComponentSender};
+use std::path::Path;
+use std::process::{Command, Output};
 
-async fn run_schematic(command: String, params: Vec<Param>) -> Output {
+async fn run_schematic(command: String, cwd: String, params: Vec<Param>) -> Output {
     // TODO: read executor from settings!
-   let mut cmd = Command::new("fnd");
+    let mut cmd = Command::new("fnd");
 
-    cmd.current_dir("/Users/tamas/work/mbh/mf-usl-task");
+    cmd.current_dir(cwd);
     cmd.arg(command);
     cmd.arg("--dryRun");
 
@@ -23,7 +29,6 @@ async fn run_schematic(command: String, params: Vec<Param>) -> Output {
     let out = cmd.output().expect("Command failed to start");
     out
 }
-
 
 #[derive(Debug)]
 pub enum CommandMsg {
@@ -37,20 +42,47 @@ pub struct SchematicExecutorModel {
     builder: CommandBuilder,
     command_buf: EntryBuffer,
     output_buf: TextBuffer,
+    cwd_buf: EntryBuffer,
     error_buf: TextBuffer,
+    error: bool,
+    error_message: String,
+    settings: Option<SettingsData>,
 }
+
+impl SchematicExecutorModel {
+    fn validate(&mut self) -> bool {
+        let cwd = self.cwd_buf.text().to_string();
+        let path = Path::new(&cwd);
+
+        if cwd.len() == 0 {
+            self.set_error("The cwd field is mandatory!");
+            return false;
+        } else if !path.exists() || !path.is_dir() {
+            self.set_error(&format!(
+                "The '{}' doesn't exist or it's not a directory!",
+                cwd
+            ));
+            return false;
+        }
+        true
+    }
+}
+
+impl_validation!(SchematicExecutorModel);
 
 #[derive(Debug, Clone)]
 pub struct SchematicExecutorInputParams {
     pub params: Vec<Param>,
     pub schematic: String,
+    pub settings: SettingsData,
 }
 
 #[derive(Debug)]
 pub enum SchematicExecutorInput {
     Show(SchematicExecutorInputParams),
     Execute,
-    CopyToClipboard
+    SetCwd(String),
+    CopyToClipboard,
 }
 
 #[derive(Debug)]
@@ -65,7 +97,7 @@ impl Component for SchematicExecutorModel {
 
     view! {
         #[root]
-        gtk::Box {
+        r = gtk::Box {
           set_hexpand: true,
           set_orientation: gtk::Orientation::Vertical,
           gtk::Label {
@@ -88,11 +120,68 @@ impl Component for SchematicExecutorModel {
               set_halign: gtk::Align::Start,
               set_label: "Command"
             },
+            gtk::Revealer {
+              set_transition_type: gtk::RevealerTransitionType::SlideDown,
+              #[watch]
+              set_reveal_child: model.error,
+              gtk::Label {
+                set_hexpand: true,
+                set_vexpand: false,
+                set_css_classes: &["label", "error"],
+                set_halign: gtk::Align::Center,
+                #[watch]
+                set_label: &format!("Error: {}", &model.error_message)
+              },
+            },
+            gtk::Label {
+                set_hexpand: true,
+                set_vexpand: false,
+                set_css_classes: &["label"],
+                set_halign: gtk::Align::Start,
+                set_label: "Working directory"
+            },
+            gtk::Box {
+              set_orientation: gtk::Orientation::Horizontal,
+               gtk::Entry {
+                set_hexpand: true,
+                set_vexpand: false,
+                set_css_classes: &["text_input", "cwd"],
+                set_buffer: &model.cwd_buf,
+                set_placeholder_text: Some("e.g: /foo/bar")
+              },
+              gtk::Button {
+                set_hexpand: false,
+                set_vexpand: false,
+                set_height_request: 20,
+                    set_icon_name: "document-open",
+                    set_tooltip: "Browse file",
+                    set_css_classes: &["button", "action_icon", "row_button"],
+                    connect_clicked[sender] => move |button| {
+                      let dialog = FormUtils::new().file_chooser("Schematics runner",&button.root().unwrap().downcast::<Window>().unwrap(),None,None);
+                      let send = sender.clone();
+                      dialog.connect_response(move |file_chooser, resp| {
+                          match resp {
+                            ResponseType::Cancel => file_chooser.close(),
+                            ResponseType::Accept => {
+                              let file_name = file_chooser.file().unwrap().parse_name().to_string();
+                              file_chooser.close();
+                              let _ = send.input_sender().send(SchematicExecutorInput::SetCwd(file_name));
+                            },
+                            _ => ()
+                          }
+                      });
+                      dialog.show();
+
+                    }
+                  },
+            },
             gtk::Box {
               set_orientation: gtk::Orientation::Horizontal,
               gtk::Entry {
                 set_hexpand: true,
                 set_vexpand: false,
+                set_editable: false,
+                set_can_focus: false,
                 set_css_classes: &["text_input", "command_input"],
                 set_buffer: &model.command_buf
               },
@@ -106,8 +195,7 @@ impl Component for SchematicExecutorModel {
                 connect_clicked[sender] => move |_| {
                   let _ = sender.input_sender().send(SchematicExecutorInput::CopyToClipboard);
                 }
-           
-            },
+              },
             },
             gtk::Button {
               set_hexpand: false,
@@ -152,7 +240,7 @@ impl Component for SchematicExecutorModel {
               gtk::Label {
                 set_hexpand: true,
                 set_vexpand: false,
-                 set_css_classes: &["label"],
+                set_css_classes: &["label"],
                 set_halign: gtk::Align::Start,
                 set_label: "Errors"
               },
@@ -181,8 +269,12 @@ impl Component for SchematicExecutorModel {
             submitted: false,
             builder: CommandBuilder::new(None),
             command_buf: EntryBuffer::default(),
+            cwd_buf: EntryBuffer::default(),
             output_buf: TextBuffer::default(),
             error_buf: TextBuffer::default(),
+            error: false,
+            error_message: String::default(),
+            settings: None,
         };
         let widgets = view_output!();
 
@@ -198,7 +290,8 @@ impl Component for SchematicExecutorModel {
         match message {
             CommandMsg::Data(data) => {
                 self.executing = false;
-                let output_str = strip_ansi_escapes::strip(&String::from_utf8(data.stdout).unwrap());
+                let output_str =
+                    strip_ansi_escapes::strip(&String::from_utf8(data.stdout).unwrap());
                 let error_str = strip_ansi_escapes::strip(&String::from_utf8(data.stderr).unwrap());
                 self.output_buf
                     .set_text(&String::from_utf8_lossy(&output_str));
@@ -213,26 +306,46 @@ impl Component for SchematicExecutorModel {
             SchematicExecutorInput::Show(data) => {
                 self.executing = false;
                 self.submitted = false;
-                self.builder.set_params(data.params.clone());
+
+                self.settings = Some(data.settings);
+                self.builder.set_params(data.params);
                 self.builder.set_command(data.schematic);
+                self.builder
+                    .set_executable(self.settings.clone().unwrap().runner_location);
                 self.hidden = false;
-                // TODO: read executor from settings!
-                self.command_buf.set_text(&format!("fnd {} {}", self.builder.get_command(), self.builder.to_params_string()));
+                self.command_buf.set_text(&format!(
+                    "{} {} {}",
+                    self.builder.get_executable(),
+                    self.builder.get_command(),
+                    self.builder.to_string(None)
+                ));
                 self.output_buf.set_text(&String::default());
                 self.error_buf.set_text(&String::default());
             }
             SchematicExecutorInput::Execute => {
-              self.executing = true;
-              self.submitted = true;
-              let params = self.builder.to_params();
-              let command = self.builder.get_command();
-              sender.oneshot_command(async move {
-                    CommandMsg::Data(run_schematic(command, params).await)
+                let cwd = self.cwd_buf.text().to_string();
+
+                if !self.validate() {
+                    return;
+                }
+
+                self.clear_error();
+                self.executing = true;
+                self.submitted = true;
+
+                let params = self.builder.to_params();
+                let command = self.builder.get_command();
+
+                sender.oneshot_command(async move {
+                    CommandMsg::Data(run_schematic(command, cwd, params).await)
                 });
-            },
+            }
             SchematicExecutorInput::CopyToClipboard => {
-              let clip = gtk::gdk::Display::default().unwrap().clipboard();
-              clip.set_text(&self.command_buf.text());
+                let clip = gtk::gdk::Display::default().unwrap().clipboard();
+                clip.set_text(&self.command_buf.text());
+            }
+            SchematicExecutorInput::SetCwd(path) => {
+                self.cwd_buf.set_text(path);
             }
         }
     }

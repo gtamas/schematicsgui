@@ -7,12 +7,15 @@ use relm4::{
 };
 
 use crate::command_builder::Param;
+use crate::form_utils::FormUtils;
 use crate::package_info::{PackageInfoInput, PackageInfoModel};
 use crate::schema_view::{SchemaViewInput, SchemaViewModel};
 use crate::schematic_executor::{
     SchematicExecutorInput, SchematicExecutorInputParams, SchematicExecutorModel,
 };
-use crate::schematic_ui::{SchematicUiInput, SchematicUiModel, SchematicUiOutput};
+use crate::schematic_ui::{
+    SchematicUiInput, SchematicUiInputParams, SchematicUiModel, SchematicUiOutput,
+};
 use crate::schematics::Collection;
 use crate::settings_utils::SettingsData;
 
@@ -68,6 +71,7 @@ impl SimpleComponent for SchematicsDetailsModel {
     view! {
         #[root]
         gtk::Notebook {
+          set_css_classes: &["tabs"],
           set_tab_pos: gtk::PositionType::Top,
           set_group_name: Some("tabs"),
           #[watch]
@@ -130,8 +134,9 @@ impl SimpleComponent for SchematicsDetailsModel {
     fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>) {
         match message {
             SchematicsDetailsInput::ShowSchematic(schematic_name) => {
-                let settings = self.settings.clone().unwrap();
-                let collection = Collection::new(&settings.schematics_collection);
+                let settings = self.settings.as_ref().unwrap();
+                let mut collection = Collection::new(settings.clone());
+                collection.init();
                 let schematic = collection.get_schematic(&schematic_name);
                 let path = Path::new(&settings.schematics_collection)
                     .parent()
@@ -147,19 +152,23 @@ impl SimpleComponent for SchematicsDetailsModel {
 
                 self.ui
                     .sender()
-                    .send(SchematicUiInput::Show(path.clone()))
+                    .send(SchematicUiInput::Show(SchematicUiInputParams {
+                        schema_path: path.clone(),
+                        schematic: schematic_name.clone(),
+                    }))
                     .unwrap();
 
                 self.show_ui();
                 self.schematic = schematic_name.clone();
             }
             SchematicsDetailsInput::Show(data) => {
-                let pkg = data.clone().unwrap().schematics_package;
+                self.settings = Some(data.clone().unwrap());
+                let pkg = &self.settings.as_ref().unwrap().schematics_package;
                 self.info
                     .sender()
                     .send(PackageInfoInput::Show(pkg.to_string()))
                     .unwrap();
-                self.settings = Some(data.clone().unwrap());
+
                 self.hidden = false
             }
             SchematicsDetailsInput::ShowExecutor(params) => {
@@ -168,6 +177,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .send(SchematicExecutorInput::Show(SchematicExecutorInputParams {
                         params,
                         schematic: self.schematic.clone(),
+                        settings: self.settings.as_ref().unwrap().clone(),
                     }))
                     .unwrap();
 

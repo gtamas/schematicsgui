@@ -3,11 +3,12 @@ use std::path::Path;
 use serde_json::*;
 use std::fs::read_to_string;
 
-use crate::settings_utils::SettingsUtils;
+use crate::settings_utils::SettingsData;
 
 #[derive(Debug)]
 pub struct Collection {
     data: Value,
+    settings: SettingsData,
 }
 
 #[derive(Debug)]
@@ -19,17 +20,10 @@ pub struct SchematicData {
 }
 
 impl Collection {
-    pub fn new(path: &str) -> Self {
+    pub fn new(settings: SettingsData) -> Self {
         Collection {
-            data: {
-                let res: Value;
-                if !Path::new(path).exists() {
-                    res = from_str("{}").unwrap();
-                } else {
-                    res = Self::read(path);
-                }
-                res
-            },
+            settings,
+            data: from_str("{}").unwrap(),
         }
     }
     pub fn schema_location(&self) -> &str {
@@ -48,7 +42,6 @@ impl Collection {
         }
     }
     fn list(&self) -> Map<String, Value> {
-        let settings = SettingsUtils::new().read();
         let empty = Map::default();
         self.data["schematics"]
             .as_object()
@@ -56,18 +49,23 @@ impl Collection {
             .to_owned()
             .into_iter()
             .filter(|a| {
-                if settings.show_private == false {
+                if self.settings.show_private == false {
                     return !(a.1["private"] == true);
                 }
                 true
             })
             .filter(|a| {
-                if settings.show_hidden == false {
+                if self.settings.show_hidden == false {
                     return !(a.1["hidden"] == true);
                 }
                 true
             })
             .collect()
+    }
+
+    pub fn init(&mut self) -> &Collection {
+        self.data = Self::read(&self.settings.schematics_collection);
+        self
     }
 
     pub fn list_schematic_names(&self) -> Vec<String> {
@@ -80,6 +78,7 @@ impl Collection {
         }
         result
     }
+
     pub fn has_schematic(&self, schematic: &str) -> bool {
         let result = match self.list_schematic_names().iter().find(|x| *x == schematic) {
             Some(_) => true,

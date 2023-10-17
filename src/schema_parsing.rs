@@ -1,6 +1,6 @@
 use relm4::gtk::{
     glib::{DateTime, TimeZone},
-    InputHints, InputPurpose, Justification, Orientation, PositionType,
+    FileChooserAction, InputHints, InputPurpose, Justification, Orientation, PositionType,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, DefaultOnError};
@@ -38,8 +38,8 @@ pub enum XWidgetType {
     Numeric(NumericEntry),
     Date(DateEntry),
     Color(ColorEntry),
-    File(FileEntry),
-    Dir(DirEntry),
+    File(FsEntry),
+    Dir(FsEntry),
     Choice(ChoiceEntry),
     Menu(MenuEntry),
 }
@@ -53,11 +53,21 @@ impl Default for XWidgetType {
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct FileEntry {
+pub struct FsEntry {
     #[serde(deserialize_with = "deserialize_mask")]
     pub mask: String,
     #[serde_as(deserialize_as = "DefaultOnError")]
     pub relative: Option<String>,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub is_new: bool,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub current_folder: Option<String>,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub multiple: bool,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub default_name: Option<String>,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub is_dir: bool,
 }
 
 fn deserialize_mask<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -68,30 +78,16 @@ where
     Ok(deserialized.unwrap_or(String::from("*")))
 }
 
-impl Default for FileEntry {
+impl Default for FsEntry {
     fn default() -> Self {
-        FileEntry {
+        FsEntry {
             mask: String::from("*"),
             relative: None,
-        }
-    }
-}
-
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct DirEntry {
-    #[serde(deserialize_with = "deserialize_mask")]
-    pub mask: String,
-    #[serde_as(deserialize_as = "DefaultOnError")]
-    pub relative: Option<String>,
-}
-
-impl Default for DirEntry {
-    fn default() -> Self {
-        DirEntry {
-            mask: String::from("*"),
-            relative: None,
+            is_new: false,
+            current_folder: None,
+            multiple: false,
+            default_name: None,
+            is_dir: false,
         }
     }
 }

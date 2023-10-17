@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
+use relm4::gtk::prelude::{OrientableExt, TextBufferExt, TextViewExt, WidgetExt};
 use relm4::gtk::Orientation;
-use relm4::gtk::prelude::{TextBufferExt, TextViewExt, OrientableExt, WidgetExt};
 use relm4::{gtk, ComponentParts, ComponentSender, SimpleComponent};
 use serde_json::Value;
 
@@ -10,7 +10,7 @@ use crate::schematics::Collection;
 pub struct SchemaViewModel {
     hidden: bool,
     json: gtk::TextBuffer,
-    title: String
+    title: String,
 }
 
 #[derive(Debug)]

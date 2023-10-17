@@ -1,34 +1,73 @@
-use relm4::gtk::glib::object::Object;
 use relm4::gtk::prelude::{BoxExt, ButtonExt, Cast, FrameExt, IsA, OrientableExt, WidgetExt};
 use relm4::gtk::{Align, ApplicationWindow, DialogFlags, MessageDialog};
-use relm4::{gtk, Component, ComponentParts, ComponentSender};
+use relm4::{gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller};
 use std::path::PathBuf;
 
 use crate::command_builder::{CommandBuilder, Param};
 use crate::default_widget_builder::DefaultWidgetBuilder;
 use crate::form_utils::FormUtils;
+use crate::save_dialog::{
+    SaveDialogInput, SaveDialogInputParams, SaveDialogModel, SaveDialogOutput,
+};
 use crate::schema_parsing::SchemaProp;
 use crate::schematics::Collection;
+use crate::settings_utils::SettingsUtils;
 use crate::value_extractor::ValueExtractor;
 use crate::xwidget_builder::XWidgetBuilder;
 
 #[tracker::track]
-#[derive(Debug, PartialEq)]
 pub struct SchematicUiModel {
     hidden: bool,
     json: serde_json::Value,
+    schematic: String,
+    file: Option<String>,
+    #[no_eq]
+    save: Controller<SaveDialogModel>,
 }
 
 impl SchematicUiModel {
-    fn is_a<W: IsA<Object> + IsA<gtk::Widget> + Clone, T: IsA<Object> + IsA<gtk::Widget>>(
-        &self,
-        widget: &W,
-    ) -> bool {
-        widget
-            .clone()
-            .upcast::<gtk::Widget>()
-            .downcast::<T>()
-            .is_ok()
+    fn get_loaded(&self) -> String {
+        let file = self.file.clone().unwrap_or(String::default());
+        let path = SettingsUtils::get_config_dir()
+            .join(&self.schematic)
+            .join(&file)
+            .join(".toml");
+        format!("Profile: {}", {
+            if file.len() == 0 {
+                "none"
+            } else {
+                path.to_str().unwrap()
+            }
+        })
+    }
+
+    fn extract_values(&self, widgets: &mut SchematicUiModelWidgets) -> CommandBuilder {
+        let mut w = widgets
+            .frame
+            .child()
+            .unwrap()
+            .downcast::<gtk::Box>()
+            .unwrap()
+            .first_child();
+        let mut command = CommandBuilder::new(None);
+
+        loop {
+            let widget = w.as_ref().unwrap();
+
+            let extractor = ValueExtractor::new(widget);
+            let param: Param = extractor.get_name_value();
+
+            if param.name.len() > 0 {
+                command.add(param);
+            }
+
+            w = w.as_ref().unwrap().next_sibling();
+
+            if w.is_none() {
+                break;
+            }
+        }
+        command
     }
 
     fn build_form(&self, parent: &gtk::Frame, json: &serde_json::Value) -> Option<gtk::Box> {
@@ -44,7 +83,7 @@ impl SchematicUiModel {
                     &json["title"].as_str().unwrap_or("").replace("schema", ""),
                     "schema",
                     None,
-                    Some(vec! ["label_title"])
+                    Some(vec!["label_title"]),
                 ));
                 let props = json["properties"].as_object().unwrap_or(&empty);
                 let keys = props.keys();
@@ -97,9 +136,17 @@ impl SchematicUiModel {
 }
 
 #[derive(Debug)]
+pub struct SchematicUiInputParams {
+    pub schema_path: PathBuf,
+    pub schematic: String,
+}
+
+#[derive(Debug)]
 pub enum SchematicUiInput {
-    Show(PathBuf),
+    Show(SchematicUiInputParams),
     Submit,
+    ShowSave,
+    Saved(String),
 }
 
 #[derive(Debug)]
@@ -130,35 +177,60 @@ impl Component for SchematicUiModel {
 
           append: frame = &gtk::Frame {
             set_hexpand: true,
+            #[watch]
+            set_label: Some(&model.get_loaded()),
             set_css_classes: &["ui_container"],
             #[track = "model.changed(SchematicUiModel::json())"]
             set_child: Some(&model.build_form(&frame, &model.json).unwrap())
           },
-          append: submit = &gtk::Button {
-            set_label: "Submit",
-            #[watch]
-            set_visible: !model.hidden,
-            connect_clicked[sender] => move |_| {
-             sender.input(SchematicUiInput::Submit);
-            },
+          gtk::Box {
+            set_orientation: gtk::Orientation::Horizontal,
             set_halign: Align::End,
             set_valign: Align::Start,
-            set_css_classes: &["action"]
+            append: submit = &gtk::Button {
+              set_label: "Submit",
+              #[watch]
+              set_visible: !model.hidden,
+              connect_clicked[sender] => move |_| {
+              sender.input(SchematicUiInput::Submit);
+              },
+              set_css_classes: &["action"]
+            },
+            append: save = &gtk::Button {
+              set_label: "Save",
+              #[watch]
+              set_visible: !model.hidden,
+              set_tooltip_text: Some("Save current settings"),
+              connect_clicked[sender] => move |_| {
+                sender.input(SchematicUiInput::ShowSave);
+              },
+              set_css_classes: &["action"]
+            }
           }
-
-
         }
     }
 
     fn init(
-        _init: Self::Init,
+        init: Self::Init,
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
+        let w = root;
+
+        let save = SaveDialogModel::builder()
+            .transient_for(root)
+            .launch(true)
+            .forward(sender.input_sender(), |msg| match msg {
+                SaveDialogOutput::Apply(file) => SchematicUiInput::Saved(file),
+            });
+
         let model = SchematicUiModel {
             hidden: true,
             json: serde_json::Value::default(),
             tracker: 0,
+            file: None,
+            schematic: String::default(),
+            save,
         };
 
         let widgets = view_output!();
@@ -175,43 +247,35 @@ impl Component for SchematicUiModel {
         self.reset();
 
         match message {
-            SchematicUiInput::Show(schema_path) => {
-                let json =
-                    serde_json::from_str(&Collection::read_str(schema_path.to_str().unwrap()))
-                        .unwrap();
+            SchematicUiInput::Show(params) => {
+                let json = serde_json::from_str(&Collection::read_str(
+                    params.schema_path.to_str().unwrap(),
+                ))
+                .unwrap();
                 self.set_json(json);
+                self.set_schematic(params.schematic);
                 self.hidden = false
             }
+            SchematicUiInput::ShowSave => {
+                let command = self.extract_values(widgets);
+                self.save
+                    .sender()
+                    .send(SaveDialogInput::Show(SaveDialogInputParams {
+                        form_data: command.to_toml(),
+                        schematic: self.schematic.clone(),
+                        file: self.file.clone(),
+                    }))
+                    .unwrap();
+            }
             SchematicUiInput::Submit => {
-                let mut w = widgets
-                    .frame
-                    .child()
-                    .unwrap()
-                    .downcast::<gtk::Box>()
-                    .unwrap()
-                    .first_child();
-                let mut command = CommandBuilder::new(None);
-
-                loop {
-                    let widget = w.as_ref().unwrap();
-
-                    let extractor = ValueExtractor::new(widget);
-                    let param: Param = extractor.get_name_value();
-
-                    if param.name.len() > 0 {
-                        command.add(param);
-                    }
-
-                    w = w.as_ref().unwrap().next_sibling();
-
-                    if w.is_none() {
-                        break;
-                    }
-                }
+                let command = self.extract_values(widgets);
 
                 sender
                     .output_sender()
                     .emit(SchematicUiOutput::Params(command.to_params()));
+            }
+            SchematicUiInput::Saved(file) => {
+                self.set_file(Some(file));
             }
         }
 

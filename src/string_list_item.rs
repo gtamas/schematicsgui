@@ -1,3 +1,4 @@
+use relm4::gtk::prelude::WidgetExt;
 use relm4::{binding::StringBinding, gtk, typed_list_view::RelmListItem};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,5 +41,6 @@ impl RelmListItem for StringListItem {
         let Widgets { label } = widgets;
 
         label.set_label(&self.value);
+        label.set_css_classes(&["selector_item"]);
     }
 }

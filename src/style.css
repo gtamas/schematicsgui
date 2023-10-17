@@ -1,3 +1,5 @@
+/* Global */
+
 window {
   border: none;
   color: black;
@@ -42,6 +44,13 @@ window {
   text-transform: uppercase;
 }
 
+.error {
+  border: inset 2px white;
+  background-color: rgb(244, 206, 206);
+  padding: 1em;
+  text-decoration: underline;
+}
+
 /* Buttons */
 
 button {
@@ -64,8 +73,8 @@ button:hover {
 }
 
 .action_icon {
-    min-width: 25px;
-    min-height: 10px;
+    min-width: 30px;
+    min-height: 30px;
 }
 
 .action:hover, .action_icon:hover {
@@ -77,10 +86,6 @@ button:hover {
 
 button.button.action.text-button {
   margin: 0.5em;
-}
-
-.row_button {
-  min-height: 20px;
 }
 
 /* Text Input */
@@ -174,11 +179,14 @@ scale trough highlight {
   background: orange;
 }
 
+/* Settings */
+
 .settings_dialog .text-button {
   margin: 0.5em 0.25em 0.5em 0;
 }
 
-.settings_container {
+.settings_container,
+.dialog_container {
   margin-left: 0.5em;
   margin-right: 0.5em;
 }
@@ -191,3 +199,53 @@ tabs {
   background: white;
 }
 
+/* Notebook */
+
+tab {
+  opacity: 0.5;
+  transition: opacity 500ms ease 0s;
+  box-shadow: none;
+}
+
+
+tab:checked {
+  box-shadow: 0 -2px gray inset;
+  opacity: 1;
+}
+
+tab:hover {
+  background: rgb(255, 209, 85);
+  opacity: 1;
+}
+
+.selector_container .left_header_container {
+  background: rgb(255, 186, 0);
+  background: linear-gradient(90deg, rgba(255, 186, 0, 1) 1%, rgba(255, 255, 255, 1) 83%);
+  min-height: 40px;
+}
+
+.selector_container .left_header_label {
+  font-size: 1.5em;
+  font-weight: bold;
+  text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.6);
+  margin-left: 0.5em;
+}
+
+/* Stack */
+
+/* stack {
+  background: rgb(255, 255, 255);
+  background: radial-gradient(circle, rgba(255, 255, 255, 1) 13%, rgba(255, 186, 0, 1) 24%, rgba(255, 255, 255, 1) 28%, rgba(255, 186, 0, 1) 29%, rgba(255, 255, 255, 1) 32%);
+  background-repeat: repeat;
+  background-size: 0vmax;
+  background-position: 200px 300px;
+} */
+
+
+/* Other */
+
+.invisible {
+  border: none;
+  margin: 0;
+  padding: 0;
+}

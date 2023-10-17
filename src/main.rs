@@ -1,12 +1,11 @@
-use gtk::prelude::{ApplicationExt, GtkWindowExt, OrientableExt, BoxExt};
-use relm4::gtk::{CssProvider, ShortcutsWindow, ShortcutsSection};
-use relm4::gtk::builders::ShortcutsWindowBuilder;
+use gtk::prelude::{ApplicationExt, BoxExt, GtkWindowExt, OrientableExt};
+use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::gtk::traits::{ApplicationWindowExt, FrameExt, GtkApplicationExt, WidgetExt};
+use relm4::gtk::{CssProvider, ShortcutsSection, ShortcutsWindow};
 use relm4::{
     gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller, RelmApp,
     RelmWidgetExt, SimpleComponent,
 };
-use relm4::{menu, new_action_group, new_stateless_action};
 use schematics_gui_reml::about::AppAboutDialog;
 use schematics_gui_reml::schematic_selector::{
     SchematicSelectorInput, SchematicSelectorModel, SchematicSelectorOutput,
@@ -14,7 +13,6 @@ use schematics_gui_reml::schematic_selector::{
 use schematics_gui_reml::schematics_details::{SchematicsDetailsInput, SchematicsDetailsModel};
 use schematics_gui_reml::settings::*;
 use schematics_gui_reml::settings_utils::{SettingsData, SettingsUtils};
-use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 
 #[derive(Debug, PartialEq, Clone)]
 enum AppMode {
@@ -30,7 +28,7 @@ enum AppMsg {
     Close,
     ShowAbout,
     ShowSettings,
-    ShowShortCuts
+    ShowShortCuts,
 }
 
 fn load_css() {
@@ -51,9 +49,7 @@ struct AppModel {
     tabs: Controller<SchematicsDetailsModel>,
 }
 
-impl AppModel {
-   
-}
+impl AppModel {}
 
 #[relm4::component]
 impl SimpleComponent for AppModel {
@@ -63,7 +59,6 @@ impl SimpleComponent for AppModel {
 
     view! {
         main_window = gtk::ApplicationWindow {
-            set_show_menubar: true,
             set_default_width: 900,
             set_default_height: 700,
             set_resizable: true,
@@ -75,20 +70,32 @@ impl SimpleComponent for AppModel {
             gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
                 set_spacing: 5,
-                set_margin_all: 5,
                 gtk::Paned {
                   set_orientation: gtk::Orientation::Horizontal,
-
                   #[wrap(Some)]
                   set_start_child: selector = &gtk::Frame {
-                    set_label: Some("Schematics"),
+                    set_hexpand: true,
+                    set_css_classes: &["selector_container"],
+                    #[wrap(Some)]
+                    set_label_widget: label = &gtk::Box {
+                      set_css_classes: &["left_header_container"],
+                      set_hexpand: true,
+                      gtk::Label {
+                        set_css_classes: &["left_header_label"],
+                        set_label: &"Schematics",
+                        set_hexpand: true,
+                        set_xalign: 0.0,
+                      },
+                    },
                     set_size_request[300]: 700,
+
                     set_child: Some(model.selector.widget())
                   },
                   set_resize_start_child: true,
                   set_shrink_start_child: false,
                   #[wrap(Some)]
                   set_end_child: details = &gtk::Frame {
+                    set_css_classes: &["tabs_container"],
                     set_label: Some("Details"),
                     set_size_request[600]: 700,
                     set_child: Some(model.tabs.widget())
@@ -105,14 +112,11 @@ impl SimpleComponent for AppModel {
         }
     }
 
-     
-
     fn init(
         params: Self::Init,
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-
         let dialog = SettingsModel::builder()
             .transient_for(root)
             .launch(true)
@@ -166,7 +170,7 @@ impl SimpleComponent for AppModel {
         };
 
         let app = relm4::main_application();
-        
+
         app.set_accelerators_for_action::<AboutAction>(&["<primary>A"]);
         app.set_accelerators_for_action::<QuitAction>(&["<primary>Q"]);
         app.set_accelerators_for_action::<SettingsAction>(&["<primary>S"]);
@@ -174,30 +178,22 @@ impl SimpleComponent for AppModel {
 
         let about_action: RelmAction<AboutAction> = {
             let sender = sender.clone();
-            RelmAction::new_stateless(move |_| {
-                sender.input(AppMsg::ShowAbout)
-            })
+            RelmAction::new_stateless(move |_| sender.input(AppMsg::ShowAbout))
         };
 
         let close_action: RelmAction<QuitAction> = {
-           let sender = sender.clone();
-            RelmAction::new_stateless(move |_| {
-                sender.input(AppMsg::Close)
-            })
+            let sender = sender.clone();
+            RelmAction::new_stateless(move |_| sender.input(AppMsg::Close))
         };
 
         let settings_action: RelmAction<SettingsAction> = {
-           let sender = sender.clone();
-            RelmAction::new_stateless(move |_| {
-              sender.input(AppMsg::ShowSettings)
-            })
+            let sender = sender.clone();
+            RelmAction::new_stateless(move |_| sender.input(AppMsg::ShowSettings))
         };
 
-         let help_action: RelmAction<HelpAction> = {
-           let sender = sender.clone();
-            RelmAction::new_stateless(move |_| {
-              sender.input(AppMsg::ShowShortCuts)
-            })
+        let help_action: RelmAction<HelpAction> = {
+            let sender = sender.clone();
+            RelmAction::new_stateless(move |_| sender.input(AppMsg::ShowShortCuts))
         };
 
         // let action2: RelmAction<ExampleU8Action> =
@@ -205,17 +201,17 @@ impl SimpleComponent for AppModel {
         //         *state ^= 1;
         //         dbg!(state);
         //     });
-        
 
-        widgets.main_window.set_show_menubar(true);
         let mut group = RelmActionGroup::<WindowActionGroup>::new();
         group.add_action(about_action);
         group.add_action(settings_action);
         group.add_action(help_action);
         group.add_action(close_action);
         group.register_for_widget(&widgets.main_window);
-        
+
         app.set_menubar(Some(&main_menu));
+
+        println!("{:?}", app.list_action_descriptions());
 
         ComponentParts { model, widgets }
     }
@@ -236,21 +232,22 @@ impl SimpleComponent for AppModel {
                         if !settings_util.exists() {
                             self.dialog.sender().send(SettingsInput::Show).unwrap();
                         } else {
+                            let settings = settings_util.read();
                             self.selector
                                 .sender()
-                                .send(SchematicSelectorInput::Show)
+                                .send(SchematicSelectorInput::Show(settings.clone()))
                                 .unwrap();
 
                             self.tabs
                                 .sender()
-                                .send(SchematicsDetailsInput::Show(Some(settings_util.read())))
+                                .send(SchematicsDetailsInput::Show(Some(settings.clone())))
                                 .unwrap();
                         }
                     }
                     AppMode::SettingsLoaded(data) => {
                         self.selector
                             .sender()
-                            .send(SchematicSelectorInput::Show)
+                            .send(SchematicSelectorInput::Show(data.clone()))
                             .unwrap();
 
                         self.tabs
@@ -274,23 +271,20 @@ impl SimpleComponent for AppModel {
             }
 
             AppMsg::ShowAbout => {
-               AppAboutDialog::show();
+                AppAboutDialog::show();
             }
 
             AppMsg::ShowSettings => {
-                 self.dialog.sender().send(SettingsInput::Show).unwrap();
+                self.dialog.sender().send(SettingsInput::Show).unwrap();
             }
 
-             AppMsg::ShowShortCuts => {
+            AppMsg::ShowShortCuts => {
+                let section = ShortcutsSection::builder()
+                    .section_name("Shortcuts")
+                    .build();
 
-                 let section = ShortcutsSection::builder()
-                 .section_name("Shortcuts")
-                 .build();
-
-                 let builder = ShortcutsWindow::builder()
-                 .section_name("");
+                let builder = ShortcutsWindow::builder().section_name("");
             }
-
         }
     }
 }
@@ -302,7 +296,6 @@ relm4::new_stateless_action!(QuitAction, WindowActionGroup, "quit");
 relm4::new_stateless_action!(SettingsAction, WindowActionGroup, "settings");
 relm4::new_stateless_action!(HelpAction, WindowActionGroup, "help");
 // relm4::new_stateful_action!(ExampleU8Action, WindowActionGroup, "example2", u8, u8);
-
 
 fn main() {
     let app = RelmApp::new("schematics.gui");

@@ -2,6 +2,7 @@
 pub struct CommandBuilder {
     params: Vec<Param>,
     command: String,
+    executable: String,
     options: CommandBuilderOptions,
 }
 
@@ -62,6 +63,7 @@ impl CommandBuilder {
         CommandBuilder {
             params: Vec::<Param>::new(),
             command: String::default(),
+            executable: String::default(),
             options: options.unwrap_or_default(),
         }
     }
@@ -82,6 +84,14 @@ impl CommandBuilder {
         self.params = params;
     }
 
+    pub fn set_executable(&mut self, executable: String) {
+        self.executable = executable;
+    }
+
+    pub fn get_executable(&self) -> String {
+        self.executable.clone()
+    }
+
     pub fn set_command(&mut self, command: String) {
         self.command = command;
     }
@@ -98,12 +108,22 @@ impl CommandBuilder {
         self.params.clone()
     }
 
-    pub fn to_params_string(&self) -> String {
+    pub fn to_toml(&self) -> String {
+        self.params
+            .clone()
+            .iter()
+            .map(|m| format!("{}='{}'", m.name, m.value.clone()))
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
+
+    pub fn to_string(&self, separator: Option<String>) -> String {
+        let separator = separator.unwrap_or(String::from(" "));
         self.params
             .clone()
             .iter()
             .map(|m| {
-                format!("--{} {}", m.name, {
+                format!("--{}{}{}", m.name, separator, {
                     if m.kind == InputType::TextArea {
                         self.escape_str(&m.value)
                     } else if self.options.quote_paths

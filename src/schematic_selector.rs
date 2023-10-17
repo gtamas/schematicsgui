@@ -3,7 +3,7 @@ use relm4::typed_list_view::TypedListView;
 use relm4::{gtk, ComponentParts, ComponentSender, SimpleComponent};
 
 use crate::schematics::Collection;
-use crate::settings_utils::SettingsUtils;
+use crate::settings_utils::{SettingsData, SettingsUtils};
 use crate::string_list_item::StringListItem;
 
 pub struct SchematicSelectorModel {
@@ -11,15 +11,18 @@ pub struct SchematicSelectorModel {
     list_view_wrapper: TypedListView<StringListItem, gtk::SingleSelection>,
     search: gtk::EntryBuffer,
     schematics: Vec<String>,
+    settings: Option<SettingsData>,
 }
 
 impl SchematicSelectorModel {
-    fn load_options() -> Vec<String> {
+    fn load_options(&self) -> Vec<String> {
         let settings_util = SettingsUtils::new();
-        let collection_utils: Collection;
+        let mut collection_utils: Collection;
+        let settings = self.settings.as_ref().unwrap();
 
         if settings_util.exists() {
-            collection_utils = Collection::new(&settings_util.read().schematics_collection);
+            collection_utils = Collection::new(settings.clone());
+            collection_utils.init();
             return collection_utils.list_schematic_names();
         } else {
             vec![String::default()]
@@ -29,7 +32,7 @@ impl SchematicSelectorModel {
 
 #[derive(Debug)]
 pub enum SchematicSelectorInput {
-    Show,
+    Show(SettingsData),
     FilterChange,
     Selected(u32),
 }
@@ -95,8 +98,9 @@ impl SimpleComponent for SchematicSelectorModel {
         let model = SchematicSelectorModel {
             hidden: init,
             list_view_wrapper,
-            schematics: Self::load_options(),
+            schematics: vec![String::default()],
             search: gtk::EntryBuffer::default(),
+            settings: None,
         };
 
         let my_view = &model.list_view_wrapper.view;
@@ -121,8 +125,12 @@ impl SimpleComponent for SchematicSelectorModel {
                 self.list_view_wrapper.set_filter_status(0, true);
             }
 
-            SchematicSelectorInput::Show => {
-                self.schematics = Self::load_options();
+            SchematicSelectorInput::Show(settings) => {
+                self.settings = Some(settings);
+                self.schematics = self.load_options();
+                self.list_view_wrapper.clear();
+                self.list_view_wrapper.clear_filters();
+
                 for schematic in &self.schematics {
                     self.list_view_wrapper
                         .append(StringListItem::new(schematic.to_string()));

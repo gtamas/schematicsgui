@@ -3,8 +3,8 @@ use relm4::gtk::{Box, Orientation, Widget};
 
 use crate::form_utils::FormUtils;
 use crate::schema_parsing::{
-    ChoiceEntry, ChoiceType, ColorEntry, ColorEntryType, DateEntry, DirEntry, FileEntry, MenuEntry,
-    MenuType, NumericEntry, NumericType, SchemaProp, TextEntry, XWidget, XWidgetType,
+    ChoiceEntry, ChoiceType, ColorEntry, ColorEntryType, DateEntry, FsEntry, MenuEntry, MenuType,
+    NumericEntry, NumericType, SchemaProp, TextEntry, XWidget, XWidgetType,
 };
 
 pub struct XWidgetBuilder {
@@ -80,15 +80,15 @@ impl XWidgetBuilder {
         empty
     }
 
-    fn get_file_input(&self, options: FileEntry) -> Widget {
+    fn get_file_input(&self, options: FsEntry) -> Widget {
         self.utils
             .file_input(&self.field, Some(options), None)
             .upcast()
     }
 
-    fn get_dir_input(&self, options: DirEntry) -> Widget {
+    fn get_dir_input(&self, options: FsEntry) -> Widget {
         self.utils
-            .file_input(&self.field, None, Some(options))
+            .file_input(&self.field, Some(options), None)
             .upcast()
     }
 

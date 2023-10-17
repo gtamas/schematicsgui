@@ -2,7 +2,7 @@ use colors_transform::{Color, Rgb};
 use relm4::gtk::gdk::RGBA;
 use relm4::gtk::glib::{DateTime, GString};
 use relm4::gtk::prelude::{
-    Cast, ComboBoxExtManual, EntryBufferExtManual, FileExt, GtkWindowExt, IsA,
+    Cast, ComboBoxExtManual, EntryBufferExtManual, FileChooserExtManual, FileExt, GtkWindowExt, IsA,
 };
 use relm4::gtk::{
     traits::{
@@ -15,12 +15,14 @@ use relm4::gtk::{
 };
 use relm4::gtk::{
     Adjustment, ApplicationWindow, Calendar, CheckButton, ColorButton, ColorChooserDialog,
-    ComboBoxText, DropDown, Orientation, Scale, SpinButton, Switch, TextBuffer, TextView,
-    ToggleButton, Window, Justification, WrapMode, EntryIconPosition
+    ComboBoxText, DropDown, EntryIconPosition, Justification, Orientation, Scale, SpinButton,
+    Switch, TextBuffer, TextView, ToggleButton, Widget, Window, WrapMode,
 };
 
+use relm4::gtk::gio::File;
+
 use crate::schema_parsing::{
-    ChoiceEntry, ColorEntry, ColorEntryFormat, CurrentValuePosType, DateEntry, DirEntry, FileEntry,
+    ChoiceEntry, ColorEntry, ColorEntryFormat, CurrentValuePosType, DateEntry, FsEntry,
     IconPositionType, JustificationType, MenuEntry, NumericEntry, NumericValueType,
     OrientationType, Primitive, TextEntry,
 };
@@ -113,23 +115,29 @@ impl FormUtils {
         form
     }
 
-    pub fn label(&self, text: &str, name: &str, align: Option<Justification>, css: Option<Vec<&str>>) -> Label {
+    pub fn label(
+        &self,
+        text: &str,
+        name: &str,
+        align: Option<Justification>,
+        css: Option<Vec<&str>>,
+    ) -> Label {
         let label = Label::new(Some(&text));
-        let mut css_classes = css.unwrap_or(vec! []);
-        let mut css_default = vec! ["label"];
+        let mut css_classes = css.unwrap_or(vec![]);
+        let mut css_default = vec!["label"];
         css_classes.append(&mut css_default);
         let alignment = align.unwrap_or(Justification::Left);
         label.set_css_classes(&css_classes);
         label.set_widget_name(name);
-        
+
         if alignment == Justification::Left {
-           label.set_xalign(0.0);
+            label.set_xalign(0.0);
         } else if alignment == Justification::Right {
-           label.set_xalign(1.0);
+            label.set_xalign(1.0);
         } else {
-           label.set_xalign(0.5);
+            label.set_xalign(0.5);
         }
-       
+
         label.set_justify(align.unwrap_or(Justification::Left));
         label
     }
@@ -146,7 +154,12 @@ impl FormUtils {
         let precision = Self::get_digits(&opts);
         let min_label = self.label(&opts.min.to_string(), "min", None, None);
         let max: f64 = opts.max.into();
-        let max_label = self.label(&format!("{:1$}", max, precision as usize), "max", None, None);
+        let max_label = self.label(
+            &format!("{:1$}", max, precision as usize),
+            "max",
+            None,
+            None,
+        );
         let container = Box::default();
 
         max_label.remove_css_class("label");
@@ -186,51 +199,54 @@ impl FormUtils {
         container.append(&max_label);
         container.set_css_classes(&["slider_input_container"]);
         container.set_valign(Align::Baseline);
-         container.set_halign(Align::Baseline);
+        container.set_halign(Align::Baseline);
         container
     }
 
     pub fn file_input(
         &self,
         name: &str,
-        file_opts: Option<FileEntry>,
-        dir_opts: Option<DirEntry>,
+        options: Option<FsEntry>,
+        buf: Option<&EntryBuffer>,
     ) -> Box {
-        let is_file = file_opts.is_some();
-
-        if file_opts.is_some() && dir_opts.is_some() {
-            panic!("Invalid call");
-        }
+        let opts = options.unwrap_or_default();
+        let action = {
+            if !opts.is_dir {
+                if opts.is_new {
+                    FileChooserAction::Save
+                } else {
+                    FileChooserAction::Open
+                }
+            } else {
+                FileChooserAction::SelectFolder
+            }
+        };
 
         let entry = self.text_input(name, None, None);
+
+        if buf.is_some() {
+            entry.set_buffer(buf.unwrap());
+        }
+
         entry.set_hexpand(true);
         let buffer = entry.buffer();
 
         let button = self.action_button("file", Some("document-open"));
         button.set_tooltip_text({
-          if is_file {
-            Some("Click to browse files")
-          } else {
-            Some("Click to browse directories")
-          }
-         });
+            if !opts.is_dir {
+                Some("Click to browse files")
+            } else {
+                Some("Click to browse directories")
+            }
+        });
         button.connect_clicked(move |b: &Button| {
             let buffer = buffer.clone();
-            let window = b.root().unwrap().downcast::<ApplicationWindow>().unwrap();
+            let window = b.root().unwrap().downcast::<Dialog>().unwrap();
             let dialog = FormUtils::new().file_chooser(
                 "Choose a file",
                 &window,
-                is_file,
-                Some(
-                    {
-                        if is_file {
-                            file_opts.clone().unwrap().mask
-                        } else {
-                            dir_opts.clone().unwrap().mask
-                        }
-                    }
-                    .as_str(),
-                ),
+                Some(action),
+                Some(opts.clone()),
             );
             dialog.show();
             dialog.connect_response(move |dialog, resp| match resp {
@@ -411,30 +427,33 @@ impl FormUtils {
         &self,
         title: &str,
         parent: &impl IsA<Window>,
-        is_file: bool,
-        filter: Option<&str>,
+        action: Option<FileChooserAction>,
+        options: Option<FsEntry>,
     ) -> FileChooserDialog {
-        let action = {
-            if is_file {
-                FileChooserAction::Open
-            } else {
-                FileChooserAction::SelectFolder
-            }
-        };
+        let opts = options.unwrap_or_default();
+        let action = action.unwrap_or(FileChooserAction::Open);
 
-        let pattern = match filter {
-            Some(s) => s,
-            None => "*",
-        };
         let title: Option<GString> = GString::from_string_unchecked(String::from(title)).into();
-        let dialog = FileChooserDialog::new(
-            title,
-            Some(parent),
-            action,
-            &[]
-        );
+        let dialog = FileChooserDialog::new(title, Some(parent), action, &[]);
         let filter = FileFilter::new();
-        filter.add_pattern(&pattern);
+
+        if opts.current_folder.is_some() {
+            let folder = File::for_path(opts.current_folder.unwrap());
+            match dialog.set_current_folder(Some(&folder)) {
+                Ok(b) => b,
+                Err(e) => panic!("{}", e),
+            };
+        }
+
+        if opts.default_name.is_some() {
+            dialog.set_current_name(&opts.default_name.unwrap());
+        }
+
+        if opts.multiple {
+            dialog.set_select_multiple(true);
+        }
+
+        filter.add_pattern(&opts.mask);
         dialog.set_filter(&filter);
         let cancel_button = dialog.add_button("Cancel", ResponseType::Cancel);
         cancel_button.add_css_class("button");
@@ -454,18 +473,18 @@ impl FormUtils {
         button
     }
 
-     pub fn action_button(&self, name: &str, icon: Option<&str>) -> Button {
+    pub fn action_button(&self, name: &str, icon: Option<&str>) -> Button {
         let button = Button::default();
         button.set_css_classes(&["button", {
-          if icon.is_some() {
-            "action_icon"
-          } else {
-            "action"
-          }
+            if icon.is_some() {
+                "action_icon"
+            } else {
+                "action"
+            }
         }]);
-        
+
         if icon.is_some() {
-          button.set_icon_name(icon.unwrap());
+            button.set_icon_name(icon.unwrap());
         }
 
         button.set_widget_name(name);
@@ -498,13 +517,16 @@ impl FormUtils {
         entry.set_input_hints(opts.hint.into());
         entry.set_truncate_multiline(true);
         entry.set_tooltip_markup(Some(&opts.tooltip));
-        entry.set_icon_tooltip_markup({
-          if opts.icon_position == IconPositionType::Start {
-            EntryIconPosition::Primary
-          } else {
-            EntryIconPosition::Secondary
-          }
-        }, Some(&opts.tooltip));
+        entry.set_icon_tooltip_markup(
+            {
+                if opts.icon_position == IconPositionType::Start {
+                    EntryIconPosition::Primary
+                } else {
+                    EntryIconPosition::Secondary
+                }
+            },
+            Some(&opts.tooltip),
+        );
         entry.set_placeholder_text(Some(&opts.placeholder));
         entry.set_max_length(opts.max_len);
         entry.set_overwrite_mode(opts.overwrite);
@@ -524,7 +546,7 @@ impl FormUtils {
         options: Option<TextEntry>,
         default: Option<Primitive>,
     ) -> TextView {
-         // TODO: implement all relevant options from text_input!
+        // TODO: implement all relevant options from text_input!
         let opts = options.unwrap_or_default();
         let buffer = TextBuffer::default();
         let entry = TextView::with_buffer(&buffer);
