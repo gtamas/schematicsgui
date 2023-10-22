@@ -55,10 +55,10 @@ impl SchematicExecutorModel {
         let path = Path::new(&cwd);
 
         if cwd.len() == 0 {
-            self.set_error("The cwd field is mandatory!");
+            self.print_error("The cwd field is mandatory!");
             return false;
         } else if !path.exists() || !path.is_dir() {
-            self.set_error(&format!(
+            self.print_error(&format!(
                 "The '{}' doesn't exist or it's not a directory!",
                 cwd
             ));

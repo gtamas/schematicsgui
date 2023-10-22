@@ -1,7 +1,6 @@
-use relm4::gtk::glib::object::Object;
 use relm4::gtk::glib::GString;
 use relm4::gtk::prelude::{
-    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt, IsA,
+    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt,
     RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
 };
 use relm4::gtk::{
@@ -12,10 +11,13 @@ use relm4::gtk::{
 use crate::command_builder::{InputType, Param};
 use crate::form_utils::FormUtils;
 use crate::schema_parsing::ColorEntryFormat;
+use crate::traits::WidgetUtils;
 
 pub struct ValueExtractor<'l> {
     widget: &'l Widget,
 }
+
+impl<'l> WidgetUtils for ValueExtractor<'l> {}
 
 impl<'l> ValueExtractor<'l> {
     pub fn new(widget: &'l Widget) -> Self {
@@ -135,13 +137,6 @@ impl<'l> ValueExtractor<'l> {
         } else {
             Param::default()
         }
-    }
-
-    fn is_a<W: IsA<Object> + IsA<Widget> + Clone, T: IsA<Object> + IsA<Widget>>(
-        &self,
-        widget: &W,
-    ) -> bool {
-        widget.clone().upcast::<Widget>().downcast::<T>().is_ok()
     }
 
     fn get_entry_value(&self, entry: Option<Widget>) -> String {

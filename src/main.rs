@@ -59,8 +59,8 @@ impl SimpleComponent for AppModel {
 
     view! {
         main_window = gtk::ApplicationWindow {
-            set_default_width: 900,
-            set_default_height: 700,
+            set_default_width: 1200,
+            set_default_height: 800,
             set_resizable: true,
             set_maximized: true,
             #[watch]
@@ -87,8 +87,7 @@ impl SimpleComponent for AppModel {
                         set_xalign: 0.0,
                       },
                     },
-                    set_size_request[300]: 700,
-
+                    // set_size_request[300]: 700,
                     set_child: Some(model.selector.widget())
                   },
                   set_resize_start_child: true,
@@ -97,7 +96,7 @@ impl SimpleComponent for AppModel {
                   set_end_child: details = &gtk::Frame {
                     set_css_classes: &["tabs_container"],
                     set_label: Some("Details"),
-                    set_size_request[600]: 700,
+                    // set_size_request[600]: 700,
                     set_child: Some(model.tabs.widget())
                   },
                   set_resize_end_child: true,

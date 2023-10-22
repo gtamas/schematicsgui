@@ -6,6 +6,7 @@ use crate::schema_parsing::{
     ChoiceEntry, ChoiceType, ColorEntry, ColorEntryType, DateEntry, FsEntry, MenuEntry, MenuType,
     NumericEntry, NumericType, SchemaProp, TextEntry, XWidget, XWidgetType,
 };
+use crate::traits::WidgetUtils;
 
 pub struct XWidgetBuilder {
     prop: SchemaProp,
@@ -76,7 +77,6 @@ impl XWidgetBuilder {
         } else if self.prop.r#type == "array" && self.prop.items.is_some() {
             return self.prop.items.as_ref().unwrap().r#enum.clone();
         }
-
         empty
     }
 

@@ -1,4 +1,4 @@
-use colors_transform::{Color, Rgb};
+use colors_transform::{Color, Rgb, Hsl, AlphaColor};
 use relm4::gtk::gdk::RGBA;
 use relm4::gtk::glib::{DateTime, GString};
 use relm4::gtk::prelude::{
@@ -30,6 +30,18 @@ use crate::schema_parsing::{
 #[derive(Debug)]
 pub struct FormUtils;
 
+#[derive(Debug)]
+pub struct FormValue<'l> {
+    pub name: &'l str,
+    pub value: &'l str,
+}
+
+impl<'l> FormValue<'l> {
+    pub fn new(name: &'l str, value: &'l str) -> FormValue<'l> {
+        FormValue { name, value }
+    }
+}
+
 impl FormUtils {
     pub fn new() -> Self {
         FormUtils {}
@@ -60,6 +72,21 @@ impl FormUtils {
             Ok(c) => c,
             Err(_) => RGBA::new(0.0, 0.0, 0.0, 0.0),
         }
+    }
+
+    pub fn color_str_to_rgba(color: &str) -> RGBA {
+      let default = Rgb::from(0.0, 0.0, 0.0);
+      let mut color_value = Rgb::from(default.get_red(), default.get_green(), default.get_blue());
+      if color.starts_with("#") {
+        color_value = Rgb::from_hex_str(color).unwrap_or(default);
+      } else if color.starts_with("rgb") {
+        color_value = color.parse::<Rgb>().unwrap_or(default);
+      } else if color.contains("%") {
+        let hsl = color.parse::<Hsl>().unwrap_or(Hsl::from(0.0, 0.0, 0.0));
+        color_value = hsl.to_rgb();
+      }  
+     
+      RGBA::new(color_value.get_red(), color_value.get_green(), color_value.get_blue(), color_value.get_alpha())
     }
 
     pub fn format_color_str(format: ColorEntryFormat, rgba: &RGBA) -> String {
@@ -329,6 +356,7 @@ impl FormUtils {
         });
 
         let form = self.browse_button_with_entry(&entry, &button);
+        form.set_widget_name(name);
         form.set_css_classes(&["date_input_container"]);
         entry.set_buffer(&buffer_clone);
         entry.set_css_classes(&["date_input"]);
@@ -789,25 +817,4 @@ impl FormUtils {
         combo
     }
 
-    //  pub fn combobox(&self, css_class: &str, name: &str, items: Vec<SchemaItem>) -> DropDown {
-
-    //     // let model = StringList::new(items.iter().map(|s| s.as_ref()).collect::<Vec<&str>>().as_slice() );
-
-    //     let store = ListStore::new(String::static_type());
-    //     let renderer = CellRendererText::new();
-    //     let col = TreeViewColumn::new();
-    //     col.set_title("Picture");
-    //     col.pack_start(&renderer, false);
-    //     col.add_attribute(&renderer, "text", 0);
-
-    //      for v in items {
-    //       store.insert(0, &StringListItem::new("".to_string()));
-    //      }
-
-    //     let combo = DropDown::new(Some(store), None);
-
-    //     combo.set_widget_name(name);
-    //     combo.set_css_classes(&[css_class]);
-    //     combo
-    // }
 }

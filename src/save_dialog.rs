@@ -8,18 +8,22 @@ use std::path::PathBuf;
 use toml::Table;
 
 use crate::form_utils::FormUtils;
+use crate::impl_validation;
 use crate::schema_parsing::FsEntry;
 use crate::settings_utils::SettingsUtils;
+use crate::traits::Validator;
+use toml::{map::Map, Value};
 
 #[tracker::track]
 #[derive(Debug)]
 pub struct SaveDialogModel {
     hidden: bool,
-    title_buf: EntryBuffer,
     desc_buf: EntryBuffer,
     file_name_buf: EntryBuffer,
     data: String,
     schematic: String,
+    error: bool,
+    error_message: String,
 }
 
 #[derive(Debug)]
@@ -28,12 +32,25 @@ pub struct SaveDialogInputParams {
     pub schematic: String,
     pub file: Option<String>,
 }
+#[derive(Debug)]
+pub struct ProfileData {
+    pub title: String,
+    pub file: String,
+    pub data: Map<String, Value>,
+}
+
+impl ProfileData {
+    pub fn new(title: String, file: String, data: Map<String, Value>) -> Self {
+        ProfileData { title, file, data }
+    }
+}
+
+impl_validation!(SaveDialogModel);
 
 impl SaveDialogModel {
     fn write(&self) {
         let toml = match format!(
-            "[meta]\ntitle='{}'\ndescription='{}'\n[data]\n{}",
-            self.title_buf.text(),
+            "[meta]\ndescription='{}'\n[data]\n{}",
             self.desc_buf.text(),
             self.data
         )
@@ -46,7 +63,7 @@ impl SaveDialogModel {
         let toml_str = toml::to_string_pretty(&toml).unwrap();
         let dir = self.create_config_dir();
         let file = self.file_name_buf.text();
-        let file_path = dir.join(format!("{}.toml", file));
+        let file_path = dir.join(format!("{}", file));
         match write(file_path.as_os_str(), toml_str) {
             Ok(s) => s,
             Err(err) => panic!("Could not save file! {}", err),
@@ -75,8 +92,22 @@ impl SaveDialogModel {
 
     fn reset_form(&mut self) {
         self.desc_buf.set_text("");
-        self.title_buf.set_text("");
         self.file_name_buf.set_text("");
+    }
+
+    fn validate(&mut self) -> bool {
+        let file = self.file_name_buf.text();
+        let path = PathBuf::from(file.clone());
+
+        if file.len() == 0 {
+            self.print_error(&"The 'file' field is mandatory!");
+            return false;
+        } else if path.extension().unwrap_or_default() != "toml" {
+            self.print_error(&format!("The '{}' is not a TOML file!", file));
+            return false;
+        }
+
+        true
     }
 }
 
@@ -115,6 +146,19 @@ impl SimpleComponent for SaveDialogModel {
             gtk::Box {
               set_orientation: gtk::Orientation::Vertical,
               set_css_classes: &["dialog_container"],
+              gtk::Revealer {
+                set_transition_type: gtk::RevealerTransitionType::SlideDown,
+                #[watch]
+                set_reveal_child: model.error,
+                gtk::Label {
+                  set_hexpand: true,
+                  set_vexpand: false,
+                  set_css_classes: &["label", "error"],
+                  set_halign: gtk::Align::Center,
+                  #[watch]
+                  set_label: &format!("Error: {}", &model.error_message)
+                }
+              },
               gtk::Label {
                 set_hexpand: true,
                 set_vexpand: false,
@@ -137,18 +181,6 @@ impl SimpleComponent for SaveDialogModel {
                 set_vexpand: false,
                 set_css_classes: &["label"],
                 set_halign: gtk::Align::Start,
-                set_label: "Title"
-              },
-              gtk::Entry {
-                set_hexpand: true,
-                set_css_classes: &["text_input", "setting_title"],
-                set_buffer: &model.title_buf
-              },
-              gtk::Label {
-                set_hexpand: true,
-                set_vexpand: false,
-                set_css_classes: &["label"],
-                set_halign: gtk::Align::Start,
                 set_label: "Description"
               },
               gtk::Entry {
@@ -157,15 +189,18 @@ impl SimpleComponent for SaveDialogModel {
                 set_buffer: &model.desc_buf
               }
             },
-            connect_response[sender] => move |_, resp| {
+            connect_response[sender] => move |dialog, resp| {
+                dialog.set_default_height(200);
                 sender.input(if resp == gtk::ResponseType::Apply {
                     SaveDialogInput::Apply
                 } else {
                     SaveDialogInput::Cancel
                 })
+
             },
-            connect_close_request[sender] => move |_| {
+            connect_close_request[sender] => move |dialog| {
                 sender.input(SaveDialogInput::Cancel);
+                dialog.set_default_height(200);
                 gtk::Inhibit(true)
             }
 
@@ -180,11 +215,12 @@ impl SimpleComponent for SaveDialogModel {
         let model = SaveDialogModel {
             hidden: true,
             data: String::default(),
-            title_buf: EntryBuffer::default(),
             desc_buf: EntryBuffer::default(),
             file_name_buf: EntryBuffer::default(),
             schematic: String::default(),
             tracker: 0,
+            error: false,
+            error_message: String::default(),
         };
         let widgets = view_output!();
         ComponentParts { model, widgets }
@@ -200,6 +236,12 @@ impl SimpleComponent for SaveDialogModel {
                 self.hidden = false;
             }
             SaveDialogInput::Apply => {
+                if !self.validate() {
+                    return;
+                }
+
+                self.set_error(false);
+
                 self.write();
                 sender
                     .output(SaveDialogOutput::Apply(
@@ -212,6 +254,8 @@ impl SimpleComponent for SaveDialogModel {
             SaveDialogInput::Cancel => {
                 self.hidden = true;
                 self.reset_form();
+                self.clear_error();
+                self.set_error(false);
             }
         }
     }

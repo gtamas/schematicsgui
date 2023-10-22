@@ -1,6 +1,7 @@
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
+use crate::form_utils::FormValue;
 use crate::schema_parsing::FsEntry;
 use crate::settings_utils::SettingsUtils;
 use crate::{form_utils::FormUtils, settings_utils::SettingsData};
@@ -29,17 +30,6 @@ pub struct SettingsModel {
     error: bool,
     error_message: String,
 }
-#[derive(Debug)]
-struct FormValue<'l> {
-    name: &'l str,
-    value: &'l str,
-}
-
-impl<'l> FormValue<'l> {
-    fn new(name: &'l str, value: &'l str) -> FormValue<'l> {
-        FormValue { name, value }
-    }
-}
 
 impl SettingsModel {
     fn validate(&mut self) -> bool {
@@ -56,10 +46,10 @@ impl SettingsModel {
         for field in values {
             let path = Path::new(field.value);
             if field.value.len() == 0 {
-                self.set_error(&format!("The '{}' field is mandatory!", field.name));
+                self.print_error(&format!("The '{}' field is mandatory!", field.name));
                 return false;
             } else if !path.exists() || !path.is_file() {
-                self.set_error(&format!(
+                self.print_error(&format!(
                     "The '{}' doesn't exist or it's not a file!",
                     field.name
                 ));
