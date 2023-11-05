@@ -6,7 +6,6 @@ use crate::schema_parsing::{
     ChoiceEntry, ChoiceType, ColorEntry, ColorEntryType, DateEntry, FsEntry, MenuEntry, MenuType,
     NumericEntry, NumericType, SchemaProp, TextEntry, XWidget, XWidgetType,
 };
-use crate::traits::WidgetUtils;
 
 pub struct XWidgetBuilder {
     prop: SchemaProp,
@@ -86,7 +85,8 @@ impl XWidgetBuilder {
             .upcast()
     }
 
-    fn get_dir_input(&self, options: FsEntry) -> Widget {
+    fn get_dir_input(&self, mut options: FsEntry) -> Widget {
+        options.is_dir = true;
         self.utils
             .file_input(&self.field, Some(options), None)
             .upcast()

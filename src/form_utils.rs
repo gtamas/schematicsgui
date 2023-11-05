@@ -1,6 +1,6 @@
-use colors_transform::{Color, Rgb, Hsl, AlphaColor};
+use colors_transform::{AlphaColor, Color, Hsl, Rgb};
 use relm4::gtk::gdk::RGBA;
-use relm4::gtk::glib::{DateTime, GString};
+use relm4::gtk::glib::{DateTime, GString, TimeZone};
 use relm4::gtk::prelude::{
     Cast, ComboBoxExtManual, EntryBufferExtManual, FileChooserExtManual, FileExt, GtkWindowExt, IsA,
 };
@@ -15,8 +15,8 @@ use relm4::gtk::{
 };
 use relm4::gtk::{
     Adjustment, ApplicationWindow, Calendar, CheckButton, ColorButton, ColorChooserDialog,
-    ComboBoxText, DropDown, EntryIconPosition, Justification, Orientation, Scale, SpinButton,
-    Switch, TextBuffer, TextView, ToggleButton, Widget, Window, WrapMode,
+    ComboBoxText, DropDown, EntryIconPosition, Justification, LinkButton, Orientation, Scale,
+    SpinButton, Switch, TextBuffer, TextView, ToggleButton, Widget, Window, WrapMode,
 };
 
 use relm4::gtk::gio::File;
@@ -26,6 +26,7 @@ use crate::schema_parsing::{
     IconPositionType, JustificationType, MenuEntry, NumericEntry, NumericValueType,
     OrientationType, Primitive, TextEntry,
 };
+use crate::traits::WidgetUtils;
 
 #[derive(Debug)]
 pub struct FormUtils;
@@ -41,6 +42,8 @@ impl<'l> FormValue<'l> {
         FormValue { name, value }
     }
 }
+
+impl WidgetUtils for FormUtils {}
 
 impl FormUtils {
     pub fn new() -> Self {
@@ -62,7 +65,7 @@ impl FormUtils {
         if format != "" {
             return date
                 .format(&format)
-                .unwrap_or(date.format("%Y-%m-%d").unwrap());
+                .unwrap_or(date.format("%Y-%m-%d %H:%M:%S").unwrap());
         }
         date.format_iso8601().unwrap()
     }
@@ -74,19 +77,37 @@ impl FormUtils {
         }
     }
 
+    pub fn get_link_button(&self, uri: &str, label: Option<&str>) -> LinkButton {
+        let button = LinkButton::with_label(uri, label.unwrap_or(uri));
+        button.set_width_request(400);
+        button.set_halign(Align::Start);
+        button
+            .child()
+            .unwrap()
+            .downcast::<Label>()
+            .unwrap()
+            .set_xalign(0.0);
+        button
+    }
+
     pub fn color_str_to_rgba(color: &str) -> RGBA {
-      let default = Rgb::from(0.0, 0.0, 0.0);
-      let mut color_value = Rgb::from(default.get_red(), default.get_green(), default.get_blue());
-      if color.starts_with("#") {
-        color_value = Rgb::from_hex_str(color).unwrap_or(default);
-      } else if color.starts_with("rgb") {
-        color_value = color.parse::<Rgb>().unwrap_or(default);
-      } else if color.contains("%") {
-        let hsl = color.parse::<Hsl>().unwrap_or(Hsl::from(0.0, 0.0, 0.0));
-        color_value = hsl.to_rgb();
-      }  
-     
-      RGBA::new(color_value.get_red(), color_value.get_green(), color_value.get_blue(), color_value.get_alpha())
+        let default = Rgb::from(0.0, 0.0, 0.0);
+        let mut color_value = Rgb::from(default.get_red(), default.get_green(), default.get_blue());
+        if color.starts_with("#") {
+            color_value = Rgb::from_hex_str(color).unwrap_or(default);
+        } else if color.starts_with("rgb") {
+            color_value = color.parse::<Rgb>().unwrap_or(default);
+        } else if color.contains("%") {
+            let hsl = color.parse::<Hsl>().unwrap_or(Hsl::from(0.0, 0.0, 0.0));
+            color_value = hsl.to_rgb();
+        }
+
+        RGBA::new(
+            color_value.get_red() / 255.0,
+            color_value.get_green() / 255.0,
+            color_value.get_blue() / 255.0,
+            color_value.get_alpha(),
+        )
     }
 
     pub fn format_color_str(format: ColorEntryFormat, rgba: &RGBA) -> String {
@@ -192,17 +213,24 @@ impl FormUtils {
         max_label.remove_css_class("label");
         min_label.remove_css_class("label");
 
-        container.set_orientation(Orientation::Horizontal);
-        container.append(&min_label);
-
         let orientation = match opts.orientation {
             OrientationType::Horizontal => Orientation::Horizontal,
             OrientationType::Vertical => Orientation::Vertical,
         };
+
+        container.set_orientation(orientation);
+        container.append(&min_label);
+
         let slider = Scale::new(orientation, Some(&adjustment));
         slider.set_css_classes(&["slider"]);
         slider.set_widget_name(name);
         let pos_type = opts.show_current.clone().into();
+
+        if orientation == Orientation::Vertical {
+            max_label.set_xalign(0.5);
+            min_label.set_xalign(0.5);
+            slider.set_height_request(opts.slider_height);
+        }
 
         if opts.show_current != CurrentValuePosType::None {
             slider.set_draw_value(true);
@@ -222,11 +250,19 @@ impl FormUtils {
             slider.set_value(value);
         }
 
+        container.set_widget_name(name);
         container.append(&slider);
         container.append(&max_label);
         container.set_css_classes(&["slider_input_container"]);
+
+        if orientation == Orientation::Vertical {
+            container.set_halign(Align::Start);
+        } else {
+            container.set_halign(Align::Baseline);
+        }
+
         container.set_valign(Align::Baseline);
-        container.set_halign(Align::Baseline);
+
         container
     }
 
@@ -268,13 +304,25 @@ impl FormUtils {
         });
         button.connect_clicked(move |b: &Button| {
             let buffer = buffer.clone();
-            let window = b.root().unwrap().downcast::<Dialog>().unwrap();
-            let dialog = FormUtils::new().file_chooser(
-                "Choose a file",
-                &window,
-                Some(action),
-                Some(opts.clone()),
-            );
+            let win = b.root().unwrap().downcast::<ApplicationWindow>();
+            let dialog: FileChooserDialog;
+
+            if win.is_err() {
+                dialog = FormUtils::new().file_chooser(
+                    &opts.clone().title.unwrap_or_default(),
+                    &b.root().unwrap().downcast::<Dialog>().unwrap(),
+                    Some(action),
+                    Some(opts.clone()),
+                );
+            } else {
+                dialog = FormUtils::new().file_chooser(
+                    &opts.clone().title.unwrap_or_default(),
+                    &win.unwrap(),
+                    Some(action),
+                    Some(opts.clone()),
+                );
+            }
+
             dialog.show();
             dialog.connect_response(move |dialog, resp| match resp {
                 ResponseType::Cancel => dialog.close(),
@@ -288,6 +336,7 @@ impl FormUtils {
         });
 
         let form = self.browse_button_with_entry(&entry, &button);
+        form.set_widget_name(&name);
         form.set_css_classes(&["file_input_container"]);
         form
     }
@@ -335,11 +384,8 @@ impl FormUtils {
             let calendar = Calendar::new();
 
             if default.is_some() {
-                calendar.select_day(&default_date.as_ref().unwrap());
-                buffer.set_text(Self::format_date(
-                    opts.format.clone(),
-                    &default_date.as_ref().unwrap(),
-                ));
+                let d = DateTime::from_iso8601(&buffer.text(), Some(&TimeZone::utc()));
+                calendar.select_day(&d.unwrap_or(DateTime::now_utc().unwrap()));
             }
 
             calendar.connect_day_selected(move |c| {
@@ -443,6 +489,7 @@ impl FormUtils {
         form.set_hexpand(true);
         form.append(&entry);
         form.append(&button);
+        form.set_widget_name(name);
         form.set_css_classes(&["color_input_container"]);
         entry.set_buffer(&buffer_clone);
         entry.set_css_classes(&["color_input"]);
@@ -459,7 +506,11 @@ impl FormUtils {
         options: Option<FsEntry>,
     ) -> FileChooserDialog {
         let opts = options.unwrap_or_default();
-        let action = action.unwrap_or(FileChooserAction::Open);
+        let mut action = action.unwrap_or(FileChooserAction::Open);
+
+        if opts.is_dir {
+            action = FileChooserAction::SelectFolder;
+        }
 
         let title: Option<GString> = GString::from_string_unchecked(String::from(title)).into();
         let dialog = FileChooserDialog::new(title, Some(parent), action, &[]);
@@ -630,6 +681,7 @@ impl FormUtils {
             container.append(&widget);
         }
 
+        container.set_widget_name(name);
         container.set_css_classes(&["radio_group_container"]);
         container
     }
@@ -662,6 +714,7 @@ impl FormUtils {
             container.append(&widget);
         }
 
+        container.set_widget_name(name);
         container.set_css_classes(&["toggle_group_container"]);
         container
     }
@@ -816,5 +869,4 @@ impl FormUtils {
         combo.set_css_classes(&["combo"]);
         combo
     }
-
 }

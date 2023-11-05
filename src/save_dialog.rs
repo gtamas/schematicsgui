@@ -22,16 +22,22 @@ pub struct SaveDialogModel {
     file_name_buf: EntryBuffer,
     data: String,
     schematic: String,
+    package_name: String,
+    success: bool,
     error: bool,
-    error_message: String,
+    message: String,
 }
 
 #[derive(Debug)]
 pub struct SaveDialogInputParams {
     pub form_data: String,
     pub schematic: String,
+    pub package_name: String,
     pub file: Option<String>,
+    pub description: Option<String>,
+    pub auto_save: bool,
 }
+
 #[derive(Debug)]
 pub struct ProfileData {
     pub title: String,
@@ -71,7 +77,9 @@ impl SaveDialogModel {
     }
 
     fn get_config_dir(&self) -> PathBuf {
-        SettingsUtils::get_config_dir().join(self.schematic.clone())
+        SettingsUtils::get_config_dir()
+            .join(self.get_package_name())
+            .join(self.get_schematic())
     }
 
     fn get_config_dir_as_string(&self) -> String {
@@ -80,9 +88,8 @@ impl SaveDialogModel {
 
     fn create_config_dir(&self) -> PathBuf {
         let config_dir: PathBuf = self.get_config_dir();
-
         if !config_dir.exists() {
-            match std::fs::create_dir(&config_dir) {
+            match std::fs::create_dir_all(&config_dir) {
                 Ok(s) => s,
                 Err(err) => panic!("Could not create settings dir! {}", err),
             }
@@ -156,7 +163,7 @@ impl SimpleComponent for SaveDialogModel {
                   set_css_classes: &["label", "error"],
                   set_halign: gtk::Align::Center,
                   #[watch]
-                  set_label: &format!("Error: {}", &model.error_message)
+                  set_label: &format!("Error: {}", &model.message)
                 }
               },
               gtk::Label {
@@ -218,9 +225,11 @@ impl SimpleComponent for SaveDialogModel {
             desc_buf: EntryBuffer::default(),
             file_name_buf: EntryBuffer::default(),
             schematic: String::default(),
+            package_name: String::default(),
             tracker: 0,
             error: false,
-            error_message: String::default(),
+            success: false,
+            message: String::default(),
         };
         let widgets = view_output!();
         ComponentParts { model, widgets }
@@ -231,9 +240,17 @@ impl SimpleComponent for SaveDialogModel {
             SaveDialogInput::Show(data) => {
                 self.data = data.form_data;
                 self.set_schematic(data.schematic);
+                self.set_package_name(data.package_name);
                 self.file_name_buf
                     .set_text(data.file.unwrap_or(String::default()));
-                self.hidden = false;
+                self.desc_buf
+                    .set_text(data.description.unwrap_or(String::default()));
+
+                if !data.auto_save {
+                    self.hidden = false;
+                } else {
+                    sender.input_sender().emit(SaveDialogInput::Apply);
+                }
             }
             SaveDialogInput::Apply => {
                 if !self.validate() {

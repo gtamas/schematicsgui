@@ -1,6 +1,6 @@
 use relm4::gtk::{
     glib::{DateTime, TimeZone},
-    FileChooserAction, InputHints, InputPurpose, Justification, Orientation, PositionType,
+    InputHints, InputPurpose, Justification, Orientation, PositionType,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, DefaultOnError};
@@ -68,6 +68,8 @@ pub struct FsEntry {
     pub default_name: Option<String>,
     #[serde_as(deserialize_as = "DefaultOnError")]
     pub is_dir: bool,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub title: Option<String>,
 }
 
 fn deserialize_mask<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -88,6 +90,7 @@ impl Default for FsEntry {
             multiple: false,
             default_name: None,
             is_dir: false,
+            title: Some(String::from("Choose a file")),
         }
     }
 }
@@ -477,6 +480,8 @@ pub struct NumericEntry {
     pub show_current: CurrentValuePosType,
     #[serde_as(deserialize_as = "DefaultOnError")]
     pub marks: Vec<MarkData>,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub slider_height: i32,
 }
 
 impl Default for NumericEntry {
@@ -492,6 +497,7 @@ impl Default for NumericEntry {
             page_size: IntOrFloat::Float(1.0),
             orientation: OrientationType::Horizontal,
             precision: IntOrFloat::Int(2),
+            slider_height: 100,
             wrap: false,
             show_current: CurrentValuePosType::Top,
             marks: vec![],
@@ -716,11 +722,8 @@ impl Into<u32> for Primitive {
 impl Into<DateTime> for Primitive {
     fn into(self) -> DateTime {
         match self {
-            Primitive::Str(d) => {
-                let date_str = d + "T00:00:00";
-                DateTime::from_iso8601(&date_str, Some(&TimeZone::utc()))
-                    .unwrap_or(DateTime::now_utc().unwrap())
-            }
+            Primitive::Str(d) => DateTime::from_iso8601(&d, Some(&TimeZone::utc()))
+                .unwrap_or(DateTime::now_utc().unwrap()),
             _ => DateTime::now_utc().unwrap(),
         }
     }

@@ -44,11 +44,16 @@ window {
   text-transform: uppercase;
 }
 
-.error {
+.error,
+.success {
   border: inset 2px white;
   background-color: rgb(244, 206, 206);
   padding: 1em;
   text-decoration: underline;
+}
+
+.success {
+  background-color: rgb(143, 255, 163);
 }
 
 /* Buttons */
@@ -62,6 +67,15 @@ button {
 button:hover {
   background: #dedede;
   color: black;
+}
+
+button.link,
+button.link:hover {
+  border: none;
+  background: none;
+  color: black;
+  margin-left: 0;
+  padding-left: 0;
 }
 
 .row_button {
@@ -86,6 +100,13 @@ button:hover {
 
 button.button.action.text-button {
   margin: 0.5em;
+}
+
+/* schematics selector */
+
+.schematics_selector .text_input {
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 /* Text Input */
@@ -218,17 +239,61 @@ tab:hover {
   opacity: 1;
 }
 
-.selector_container .left_header_container {
+/* Header */
+
+.selector_container .left_header_container,
+.tabs_container .right_header_container {
   background: rgb(255, 186, 0);
   background: linear-gradient(90deg, rgba(255, 186, 0, 1) 1%, rgba(255, 255, 255, 1) 83%);
   min-height: 40px;
 }
 
-.selector_container .left_header_label {
+.tabs_container .right_header_container {
+
+  background: rgb(255, 255, 255);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 1) 36%, rgba(255, 186, 0, 1) 100%);
+  border-bottom: inset 3px gray;
+}
+
+.left_header_label {
+  min-width: 300px;
+}
+
+.right_header_label {
+  min-width: 900px;
+}
+
+.selector_container .left_header_label,
+.tabs_container .right_header_label {
   font-size: 1.5em;
   font-weight: bold;
   text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.6);
   margin-left: 0.5em;
+}
+
+.tabs_container .right_header_label {
+  margin-right: 0.5em;
+  margin-left: 0;
+
+}
+
+/* List view */
+
+.profile_browser row:hover,
+.profile_browser row:selected,
+.collection_list row:hover,
+.collection_list row:selected {
+  background: rgba(255, 186, 0, 1);
+  border-bottom: solid 1px silver;
+  color: white;
+  outline: none;
+  font-weight: bold;
+  border-left: solid 5px rgb(208, 208, 208);
+  padding-left: 0.5em;
+}
+
+.content_area {
+  margin: 0.5em 0 0 0.5em;
 }
 
 /* Stack */
@@ -240,6 +305,16 @@ tab:hover {
   background-size: 0vmax;
   background-position: 200px 300px;
 } */
+
+.profile_browser {
+  border: solid 1px silver;
+}
+
+.profile_browser row:hover,
+.profile_browser row:selected {
+  border-right: solid 5px rgb(208, 208, 208);
+  border-left: none;
+}
 
 /* UI form */
 
@@ -259,4 +334,8 @@ tab:hover {
   border: none;
   margin: 0;
   padding: 0;
+}
+
+.h100 {
+  min-height: 100px;
 }

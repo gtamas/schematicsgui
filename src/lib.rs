@@ -18,5 +18,5 @@ pub mod settings_utils;
 pub mod string_list_item;
 pub mod traits;
 pub mod value_extractor;
-pub mod xwidget_builder;
 pub mod value_loader;
+pub mod xwidget_builder;

@@ -1,12 +1,12 @@
 use relm4::gtk::glib::object::Object;
 use relm4::gtk::glib::GString;
 use relm4::gtk::prelude::{
-    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt,
-    RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt, ComboBoxExt, ListModelExtManual
+    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, ComboBoxExt, EntryBufferExtManual, EntryExt,
+    IsA, ListModelExtManual, RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
 };
 use relm4::gtk::{
-    Box, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range, SpinButton,
-    StringObject, Switch, TextView, ToggleButton, Widget, StringList,
+    Box, Button, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range,
+    SpinButton, StringList, StringObject, Switch, TextView, ToggleButton, Widget,
 };
 
 use crate::form_utils::FormUtils;
@@ -30,24 +30,23 @@ impl<'l> ValueLoader<'l> {
 
     pub fn set_value(&self, value: &Value, widget_name: &str) -> () {
         if self.is_a::<_, Entry>(self.widget) {
-           self.set_entry_value(value, None);
+            self.set_entry_value(value, None);
         } else if self.is_a::<_, TextView>(self.widget) {
-           self.set_text_view_value(value);
+            self.set_text_view_value(value);
         } else if self.is_a::<_, Switch>(self.widget) {
-           self.set_switch_value(value);
+            self.set_switch_value(value);
         } else if self.is_a::<_, ColorButton>(self.widget) {
-          self.set_color_button_value(value);
+            self.set_color_button_value(value);
         } else if self.is_a::<_, Box>(self.widget) {
-           println!("{:?}", value);
             let container = self.widget.clone().downcast::<Box>().unwrap();
             let kind = container.css_classes();
 
             if kind.contains(&GString::from("slider_input_container")) {
-               self.set_slider_value(value, &container);
+                self.set_slider_value(value, &container);
             } else if kind.contains(&GString::from("radio_group_container"))
                 || kind.contains(&GString::from("toggle_group_container"))
             {
-                self.set_group_value(widget_name, value, &container);
+                self.set_group_value(value, &container);
             } else if kind.contains(&GString::from("date_input_container"))
                 || kind.contains(&GString::from("file_input_container"))
                 || kind.contains(&GString::from("dir_input_container"))
@@ -58,14 +57,14 @@ impl<'l> ValueLoader<'l> {
         } else if self.is_a::<_, CheckButton>(self.widget) {
             self.set_check_button_value(value);
         } else if self.is_a::<_, ToggleButton>(self.widget) {
-          self.set_toggle_button_value(value);
+            self.set_toggle_button_value(value);
         } else if self.is_a::<_, SpinButton>(self.widget) {
-          self.set_numeric_input(value);
+            self.set_numeric_input(value);
         } else if self.is_a::<_, DropDown>(self.widget) {
-          self.set_dropdown_value(value);
+            self.set_dropdown_value(value);
         } else if self.is_a::<_, ComboBoxText>(self.widget) {
-          self.set_combo_box_value(value);
-        } 
+            self.set_combo_box_value(value);
+        }
     }
 
     fn set_entry_value(&self, value: &Value, entry: Option<Widget>) -> () {
@@ -77,12 +76,12 @@ impl<'l> ValueLoader<'l> {
             bf = self.widget.clone().downcast::<Entry>().unwrap().buffer();
         }
 
-        bf.set_text(value.as_str().unwrap());
+        bf.set_text(value.as_str().unwrap_or_default());
     }
 
     fn set_text_view_value(&self, value: &Value) -> () {
         let bf = self.widget.clone().downcast::<TextView>().unwrap().buffer();
-        bf.set_text(value.as_str().unwrap_or(""));
+        bf.set_text(value.as_str().unwrap_or_default());
     }
 
     fn set_slider_value(&self, value: &Value, container: &Box) -> () {
@@ -93,32 +92,63 @@ impl<'l> ValueLoader<'l> {
             .unwrap()
             .downcast::<Range>()
             .unwrap();
-        scale.set_value(value.as_str().unwrap_or("0.0").parse::<f64>().unwrap());
+        scale.set_value(
+            value
+                .as_str()
+                .unwrap_or("0.0")
+                .parse::<f64>()
+                .unwrap_or_default(),
+        );
     }
 
     fn set_toggle_button_value(&self, value: &Value) -> () {
         let toggle = self.widget.clone().downcast::<ToggleButton>().unwrap();
-        toggle.set_active(value.as_str().unwrap_or("false").parse::<bool>().unwrap());
+        toggle.set_active(
+            value
+                .as_str()
+                .unwrap_or("false")
+                .parse::<bool>()
+                .unwrap_or_default(),
+        );
     }
 
     fn set_check_button_value(&self, value: &Value) -> () {
         let checkbox = self.widget.clone().downcast::<CheckButton>().unwrap();
-        checkbox.set_active(value.as_str().unwrap_or("false").parse::<bool>().unwrap());
+        checkbox.set_active(
+            value
+                .as_str()
+                .unwrap_or("false")
+                .parse::<bool>()
+                .unwrap_or_default(),
+        );
     }
 
     fn set_numeric_input(&self, value: &Value) -> () {
         let entry = self.widget.clone().downcast::<SpinButton>().unwrap();
-        entry.set_value(value.as_str().unwrap_or("0.0").parse::<f64>().unwrap());
+        entry.set_value(
+            value
+                .as_str()
+                .unwrap_or("0.0")
+                .parse::<f64>()
+                .unwrap_or_default(),
+        );
     }
 
     fn set_switch_value(&self, value: &Value) -> () {
         let switch = self.widget.clone().downcast::<Switch>().unwrap();
-        switch.set_active(value.as_str().unwrap_or("false").parse::<bool>().unwrap());
+        switch.set_active(
+            value
+                .as_str()
+                .unwrap_or("false")
+                .parse::<bool>()
+                .unwrap_or_default(),
+        );
     }
 
     fn set_combo_box_value(&self, value: &Value) -> () {
         let combo: ComboBoxText = self.widget.clone().downcast::<ComboBoxText>().unwrap();
-        combo.set_active_id(value.as_str());
+        println!("{:?}", combo.id_column());
+        combo.set_active_id(Some("1"));
         // combo.set_active(Some(0));
     }
 
@@ -128,22 +158,22 @@ impl<'l> ValueLoader<'l> {
         button.set_rgba(&rgb);
     }
 
-    fn set_group_value(&self,name: &str, value: &Value, container: &Box) -> () {
+    fn set_group_value(&self, value: &Value, container: &Box) -> () {
         let mut w = container.first_child();
 
         loop {
             let widget = w.as_ref().unwrap();
             if self.is_a::<_, CheckButton>(widget) {
                 let button = widget.clone().downcast::<CheckButton>().unwrap();
-                let current_name = button.widget_name();
-                if current_name == name  {
-                    return button.set_label(value.as_str());
+                let current_label = button.label().unwrap();
+                if current_label == value.as_str().unwrap() {
+                    return button.set_active(true);
                 }
             } else if self.is_a::<_, ToggleButton>(widget) {
                 let button = widget.clone().downcast::<ToggleButton>().unwrap();
-                let current_name = button.widget_name();
-                if current_name == name {
-                    return button.set_label(value.as_str().unwrap());
+                let current_label = button.label().unwrap();
+                if current_label == value.as_str().unwrap() {
+                    return button.set_active(true);
                 }
             }
             w = w.as_ref().unwrap().next_sibling();
@@ -158,16 +188,18 @@ impl<'l> ValueLoader<'l> {
         let dropdown = self.widget.clone().downcast::<DropDown>().unwrap();
         let items = dropdown.model().unwrap().downcast::<StringList>().unwrap();
         let selected = items.iter::<Object>().position(|f| {
-          if f.is_ok() {
-            let s = f.unwrap().downcast::<StringObject>()
-            .unwrap()
-            .string()
-            .to_string();
-            return s == value.as_str().unwrap().to_string()
-          }
-          false
+            if f.is_ok() {
+                let s = f
+                    .unwrap()
+                    .downcast::<StringObject>()
+                    .unwrap()
+                    .string()
+                    .to_string();
+                return s == value.as_str().unwrap().to_string();
+            }
+            false
         });
-      
-       dropdown.set_selected(selected.unwrap() as u32);
+
+        dropdown.set_selected(selected.unwrap() as u32);
     }
 }

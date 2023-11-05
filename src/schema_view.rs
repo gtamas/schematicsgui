@@ -33,6 +33,7 @@ impl SimpleComponent for SchemaViewModel {
           set_hexpand: true,
           set_vexpand: true,
           set_orientation: Orientation::Vertical,
+          set_css_classes: &["content_area"],
           gtk::Label {
             #[watch]
             set_visible: model.hidden,
@@ -40,23 +41,16 @@ impl SimpleComponent for SchemaViewModel {
             set_halign: gtk::Align::Center,
             set_label: "Please, select a schematic!"
           },
-          gtk::Label {
-            #[watch]
-            set_visible: !model.hidden,
-            set_halign: gtk::Align::Start,
-            set_css_classes: &["label", "label_title"],
-            #[watch]
-            set_label: &model.title
-          },
           gtk::ScrolledWindow {
-           #[watch]
-            set_visible: !model.hidden,
+          #[watch]
+          set_visible: !model.hidden,
           set_hscrollbar_policy: gtk::PolicyType::Never,
           gtk::TextView {
             #[watch]
             set_visible: !model.hidden,
             set_hexpand: true,
             set_vexpand: true,
+            set_monospace: true,
             set_buffer: Some(&model.json)
           }
           }

@@ -57,11 +57,12 @@ impl SimpleComponent for SchematicSelectorModel {
         #[watch]
         set_visible: !model.hidden,
         set_orientation: gtk::Orientation::Vertical,
+        set_css_classes: &["schematics_selector"],
         set_hexpand: false,
         set_width_request: 300,
         gtk::Entry {
           set_buffer: &model.search,
-          set_css_classes: &["search", "inputText"],
+          set_css_classes: &["search", "text_input"],
           set_vexpand: false,
           set_hexpand: false,
           set_width_request: 300,
@@ -76,6 +77,7 @@ impl SimpleComponent for SchematicSelectorModel {
           set_hexpand: true,
           set_hscrollbar_policy: gtk::PolicyType::Never,
           set_max_content_width: 300,
+          set_css_classes: &["collection_list"],
           #[local_ref]
           my_view -> gtk::ListView {
             set_single_click_activate: true,

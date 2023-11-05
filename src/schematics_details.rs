@@ -8,7 +8,9 @@ use relm4::{
 
 use crate::command_builder::Param;
 use crate::form_utils::FormUtils;
-use crate::package_info::{PackageInfoInput, PackageInfoModel};
+use crate::package_info::{
+    PackageInfoInput, PackageInfoModel, PackageInfoOutput, PartialPackageJsonData,
+};
 use crate::schema_view::{SchemaViewInput, SchemaViewModel};
 use crate::schematic_executor::{
     SchematicExecutorInput, SchematicExecutorInputParams, SchematicExecutorModel,
@@ -27,6 +29,7 @@ pub struct SchematicsDetailsModel {
     ui: Controller<SchematicUiModel>,
     executor: Controller<SchematicExecutorModel>,
     settings: Option<SettingsData>,
+    package: Option<PartialPackageJsonData>,
     schematic: String,
 }
 
@@ -46,6 +49,14 @@ impl SchematicsDetailsModel {
     fn show_shell(&mut self) {
         self.tab = 3;
     }
+
+    fn build_package(&self) -> gtk::Revealer {
+        gtk::Revealer::builder()
+            .child(self.info.widget())
+            .transition_type(gtk::RevealerTransitionType::SlideLeft)
+            .reveal_child(false)
+            .build()
+    }
 }
 
 #[derive(Debug)]
@@ -53,6 +64,7 @@ pub enum SchematicsDetailsInput {
     Show(Option<SettingsData>),
     ShowSchematic(String),
     ShowExecutor(Vec<Param>),
+    SetPackage(PartialPackageJsonData),
 }
 
 #[derive(Debug)]
@@ -93,7 +105,7 @@ impl SimpleComponent for SchematicsDetailsModel {
         let info = PackageInfoModel::builder()
             .launch(true)
             .forward(sender.input_sender(), |msg| match msg {
-                _ => SchematicsDetailsInput::Show(None),
+                PackageInfoOutput::PackageData(pkg) => SchematicsDetailsInput::SetPackage(pkg),
             });
 
         let schema_view = SchemaViewModel::builder().launch(true).forward(
@@ -121,6 +133,7 @@ impl SimpleComponent for SchematicsDetailsModel {
             hidden: true,
             schema: schema_view,
             settings: None,
+            package: None,
             tab: 0,
             info,
             ui: schematic_ui,
@@ -155,6 +168,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .send(SchematicUiInput::Show(SchematicUiInputParams {
                         schema_path: path.clone(),
                         schematic: schematic_name.clone(),
+                        package_name: self.package.as_ref().unwrap().name.clone(),
                     }))
                     .unwrap();
 
@@ -170,6 +184,9 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .unwrap();
 
                 self.hidden = false
+            }
+            SchematicsDetailsInput::SetPackage(data) => {
+                self.package = Some(data);
             }
             SchematicsDetailsInput::ShowExecutor(params) => {
                 self.executor

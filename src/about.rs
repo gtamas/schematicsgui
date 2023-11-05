@@ -26,11 +26,11 @@ impl AppAboutDialog {
             authors.push(author);
         }
 
-        let file = gio::File::for_path(PathBuf::from("./resources/cli.svg"));
+        let file = gio::File::for_path(PathBuf::from("./resources/about.svg"));
 
         let img = match gdk::Texture::from_file(&file) {
-          Ok(t) => t,
-          Err(err) => panic!("Could not load logo file! {}", err)
+            Ok(t) => t,
+            Err(err) => panic!("Could not load logo file! {}", err),
         };
 
         dialog.set_logo(Some(&img));

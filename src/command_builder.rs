@@ -13,6 +13,12 @@ pub struct Param {
     pub kind: InputType,
 }
 
+impl Param {
+    pub fn new(name: String, value: String, kind: InputType) -> Self {
+        Param { name, value, kind }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputType {
     Text,

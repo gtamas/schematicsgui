@@ -1,26 +1,23 @@
-use relm4::gtk::prelude::{
-    BoxExt, ButtonExt, Cast, EditableExt, EntryBufferExtManual, EntryExt, FrameExt, OrientableExt,
-    WidgetExt,
-};
-use relm4::gtk::{Align, ApplicationWindow, DialogFlags, EntryBuffer, MessageDialog};
-use relm4::typed_list_view::TypedListView;
+use relm4::gtk::prelude::{BoxExt, ButtonExt, Cast, FrameExt, OrientableExt, WidgetExt};
+use relm4::gtk::{Align, ApplicationWindow, DialogFlags, MessageDialog};
 use relm4::{gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller};
-use std::ffi::OsStr;
 use std::fs;
 use std::path::PathBuf;
-use toml::Table;
 
 use crate::command_builder::{CommandBuilder, Param};
 use crate::default_widget_builder::DefaultWidgetBuilder;
 use crate::form_utils::FormUtils;
-use crate::profile_browser::{ProfileBrowserModel, ProfileBrowserOutput};
-use crate::profile_data_list_item::{ProfileDataListItem, ProfileDataMenuItem};
+use crate::impl_validation;
+use crate::profile_browser::{
+    ProfileBrowserInput, ProfileBrowserInputParams, ProfileBrowserModel, ProfileBrowserOutput,
+};
 use crate::save_dialog::{
     ProfileData, SaveDialogInput, SaveDialogInputParams, SaveDialogModel, SaveDialogOutput,
 };
 use crate::schema_parsing::SchemaProp;
 use crate::schematics::Collection;
 use crate::settings_utils::SettingsUtils;
+use crate::traits::Validator;
 use crate::traits::WidgetUtils;
 use crate::value_extractor::ValueExtractor;
 use crate::value_loader::ValueLoader;
@@ -33,80 +30,33 @@ pub struct SchematicUiModel {
     loader: bool,
     json: serde_json::Value,
     schematic: String,
+    package_name: String,
     file: Option<String>,
-    search: EntryBuffer,
+    error: bool,
+    success: bool,
+    message: String,
     #[no_eq]
     profiles: Vec<ProfileData>,
     #[no_eq]
     save: Controller<SaveDialogModel>,
     #[no_eq]
-    load: Controller<ProfileBrowserModel>,
-    #[no_eq]
-    list_view_wrapper: TypedListView<ProfileDataListItem, gtk::SingleSelection>,
+    browser: Controller<ProfileBrowserModel>,
 }
 
 impl WidgetUtils for SchematicUiModel {}
+impl_validation!(SchematicUiModel);
 
 impl SchematicUiModel {
-    fn get_profile_dir(&self) -> PathBuf {
-        SettingsUtils::get_config_dir().join(&self.schematic)
+    pub fn has_profiles(&self) -> bool {
+        let path = SettingsUtils::get_config_dir().join(self.get_package_name()).join(self.get_schematic());
+        path.is_dir() && path.exists() && fs::read_dir(&path).unwrap().count() > 0
     }
 
-    fn load_profiles(&mut self) -> Vec<ProfileDataMenuItem> {
-        let mut result: Vec<ProfileDataMenuItem> = vec![];
-        let dir = fs::read_dir(&self.get_profile_dir());
-
-        for entry in dir.unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
-
-            if path.is_file() && path.extension().unwrap_or( &OsStr::new("")) == "toml" {
-                let profile = match match fs::read_to_string(&path) {
-                    Ok(contents) => contents,
-                    Err(e) => panic!("Could not read file! {}", e),
-                }
-                .parse::<Table>()
-                {
-                    Ok(parsed) => parsed,
-                    Err(err) => panic!("Could not parse TOML! {}", err),
-                };
-
-                let file = path.file_name().unwrap().to_str().unwrap();
-                let mut profile_name = path.file_stem().unwrap().to_str().unwrap().to_string();
-                let description = profile["meta"]["description"].as_str().unwrap_or("");
-
-                if description.len() > 0 {
-                    profile_name = format!("{} ({})", profile_name, description.clone().to_string())
-                }
-
-                let profile = ProfileData::new(
-                    profile_name.clone(),
-                    file.clone().to_string(),
-                    profile["data"].as_table().unwrap().clone(),
-                );
-
-                self.profiles.push(profile);
-                result.push(ProfileDataMenuItem::new(
-                    file.clone().to_string(),
-                    profile_name,
-                ))
-            }
+    fn get_loaded_profile_file(&self) -> String {
+        match self.browser.model().get_loaded_profile_file_as_option() {
+            None => String::from("Profile: none"),
+            Some(p) => format!("Profile: {}", p),
         }
-        return result;
-    }
-
-    fn get_loaded_profile(&self) -> String {
-        let file = self.file.clone().unwrap_or(String::default());
-        let path = SettingsUtils::get_config_dir()
-            .join(&self.schematic)
-            .join(&file);
-        format!("Profile: {}", {
-            if file.len() == 0 {
-                "none"
-            } else {
-                path.to_str().unwrap()
-            }
-        })
     }
 
     fn load_values(&self, widgets: &mut SchematicUiModelWidgets, data_id: usize) -> () {
@@ -117,18 +67,22 @@ impl SchematicUiModel {
             .downcast::<gtk::Box>()
             .unwrap()
             .first_child();
-       
+
         loop {
             let widget = w.as_ref().unwrap();
-            let profile: &ProfileData = self.profiles[data_id].borrow();
+
+            if self.is_a::<_, gtk::Label>(widget) {
+                w = w.as_ref().unwrap().next_sibling();
+                continue;
+            }
+            let browser_model = self.browser.model();
+            let profile: &ProfileData = browser_model.profiles[data_id].borrow();
             let widget_name = widget.widget_name().to_string();
             let value = profile.data.get(&widget_name);
 
-            println!("{} {:?} {:?}", widget_name, value, widget);
-
             if value.is_some() {
-               let loader = ValueLoader::new(widget);
-               loader.set_value(value.unwrap(), &widget_name);
+                let loader = ValueLoader::new(widget);
+                loader.set_value(value.unwrap(), &widget_name);
             }
 
             w = w.as_ref().unwrap().next_sibling();
@@ -153,10 +107,14 @@ impl SchematicUiModel {
             let widget = w.as_ref().unwrap();
 
             let extractor = ValueExtractor::new(widget);
-            let param: Param = extractor.get_name_value();
+            let param = extractor.get_name_value();
 
-            if param.name.len() > 0 {
-                command.add(param);
+            if (param.is_some()) {
+                let p = param.unwrap();
+
+                if p.name.len() > 0 {
+                    command.add(p);
+                }
             }
 
             w = w.as_ref().unwrap().next_sibling();
@@ -177,12 +135,6 @@ impl SchematicUiModel {
         match json["$id"].as_str() {
             Some(_) => {
                 let empty = serde_json::Map::new();
-                form.append(&utils.label(
-                    &json["title"].as_str().unwrap_or("").replace("schema", ""),
-                    "schema",
-                    None,
-                    Some(vec!["label_title"]),
-                ));
                 let props = json["properties"].as_object().unwrap_or(&empty);
                 let keys = props.keys();
 
@@ -237,19 +189,19 @@ impl SchematicUiModel {
 pub struct SchematicUiInputParams {
     pub schema_path: PathBuf,
     pub schematic: String,
+    pub package_name: String,
 }
 
 #[derive(Debug)]
 pub enum SchematicUiInput {
     Show(SchematicUiInputParams),
     Submit,
-    ShowSave,
+    ShowSave(bool),
     ShowBrowser,
     HideBrowser,
-    Selected(u32),
-    FilterChange,
+    Selected(usize, String),
+    // FilterChange,
     Saved(String),
-    Loaded(String),
 }
 
 #[derive(Debug)]
@@ -269,6 +221,7 @@ impl Component for SchematicUiModel {
         gtk::Box {
           set_hexpand: true,
           set_orientation: relm4::gtk::Orientation::Vertical,
+           set_css_classes: &["content_area"],
           gtk::Label {
             #[watch]
             set_visible: model.hidden,
@@ -278,14 +231,31 @@ impl Component for SchematicUiModel {
             set_label: "Please, select a schematic!"
           },
           gtk::Label {
-               #[watch]
-               set_label: &model.get_loaded_profile(),
-               set_halign: Align::Center,
-               set_valign: Align::Start,
-               set_xalign: 0.5,
-               set_css_classes: &["profile_bar"]
+            #[watch]
+            set_label: &model.get_loaded_profile_file(),
+            set_halign: Align::Center,
+            set_valign: Align::Start,
+            set_xalign: 0.5,
+            #[watch]
+            set_visible: !model.hidden,
+            set_css_classes: &["profile_bar"]
+          },
+           gtk::Revealer {
+            set_transition_type: gtk::RevealerTransitionType::SlideDown,
+            #[watch]
+            set_reveal_child: model.success,
+            gtk::Label {
+              set_hexpand: true,
+              set_vexpand: false,
+              set_css_classes: &["label", "success"],
+              set_halign: gtk::Align::Center,
+              #[watch]
+              set_label: &format!("{}", &model.message)
+            },
           },
           gtk::Box {
+            #[watch]
+            set_visible: !model.hidden,
             set_hexpand: true,
             set_orientation: relm4::gtk::Orientation::Horizontal,
             append: frame = &gtk::Frame {
@@ -298,46 +268,17 @@ impl Component for SchematicUiModel {
                 set_transition_type: gtk::RevealerTransitionType::SlideLeft,
                 #[watch]
                 set_reveal_child: model.loader,
-                gtk::Box {
-                  set_orientation: gtk::Orientation::Vertical,
-                  set_hexpand: false,
-                  set_width_request: 300,
-                  gtk::Entry {
-                    set_buffer: &model.search,
-                    set_css_classes: &["search", "inputText"],
-                    set_vexpand: false,
-                    set_hexpand: false,
-                    set_width_request: 300,
-                    set_margin_bottom: 10,
-                    set_icon_from_icon_name[Some("system-search")]: gtk::EntryIconPosition::Primary,
-                    connect_changed[sender] => move |_| {
-                      sender.input(SchematicUiInput::FilterChange);
-                    }
-                  },
-                  gtk::ScrolledWindow {
-                    set_vexpand: true,
-                    set_hexpand: true,
-                    set_hscrollbar_policy: gtk::PolicyType::Never,
-                    set_max_content_width: 300,
-                    #[local_ref]
-                    my_view -> gtk::ListView {
-                      set_single_click_activate: true,
-                      connect_activate[sender] => move |_, selected| {
-                      sender.input(SchematicUiInput::Selected(selected));
-                      }
-                    }
-                  }
-                }
+                set_child: Some(model.browser.widget())
               },
           },
           gtk::Box {
             set_orientation: gtk::Orientation::Horizontal,
             set_halign: Align::End,
             set_valign: Align::Start,
+            #[watch]
+            set_visible: !model.hidden,
             append: submit = &gtk::Button {
               set_label: "Submit",
-              #[watch]
-              set_visible: !model.hidden,
               connect_clicked[sender] => move |_| {
               sender.input(SchematicUiInput::Submit);
               },
@@ -345,18 +286,26 @@ impl Component for SchematicUiModel {
             },
             append: save = &gtk::Button {
               set_label: "Save",
-              #[watch]
-              set_visible: !model.hidden,
               set_tooltip_text: Some("Save current settings"),
               connect_clicked[sender] => move |_| {
-                sender.input(SchematicUiInput::ShowSave);
+                sender.input(SchematicUiInput::ShowSave(false));
+              },
+              set_css_classes: &["action"]
+            },
+            append: save_as = &gtk::Button {
+              set_label: "Save as..",
+              #[watch]
+              set_visible: model.browser.model().is_profile_loaded(),
+              set_tooltip_text: Some("Save settings as.."),
+              connect_clicked[sender] => move |_| {
+                sender.input(SchematicUiInput::ShowSave(true));
               },
               set_css_classes: &["action"]
             },
             append: load = &gtk::Button {
               set_label: "Load",
               #[watch]
-              set_visible: !model.loader,
+              set_visible: !model.loader && model.has_profiles(),
               set_tooltip_text: Some("Load settings"),
               connect_clicked[sender] => move |_| {
                 sender.input(SchematicUiInput::ShowBrowser);
@@ -382,9 +331,6 @@ impl Component for SchematicUiModel {
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let list_view_wrapper: TypedListView<ProfileDataListItem, gtk::SingleSelection> =
-            TypedListView::with_sorting();
-
         let save = SaveDialogModel::builder()
             .transient_for(root)
             .launch(true)
@@ -392,28 +338,30 @@ impl Component for SchematicUiModel {
                 SaveDialogOutput::Apply(file) => SchematicUiInput::Saved(file),
             });
 
-        let load = ProfileBrowserModel::builder()
-            .transient_for(root)
-            .launch(true)
-            .forward(sender.input_sender(), |msg| match msg {
-                ProfileBrowserOutput::Load(data) => SchematicUiInput::Loaded(data),
-            });
+        let browser =
+            ProfileBrowserModel::builder()
+                .launch(true)
+                .forward(sender.input_sender(), |msg| match msg {
+                    ProfileBrowserOutput::Loaded(selected_index, file) => {
+                        SchematicUiInput::Selected(selected_index, file)
+                    }
+                });
 
         let model = SchematicUiModel {
             hidden: true,
-            list_view_wrapper,
             json: serde_json::Value::default(),
             tracker: 0,
             file: None,
             profiles: vec![],
             loader: false,
             schematic: String::default(),
-            search: EntryBuffer::default(),
+            package_name: String::default(),
+            error: false,
+            success: false,
+            message: String::default(),
             save,
-            load,
+            browser,
         };
-
-        let my_view = &model.list_view_wrapper.view;
 
         let widgets = view_output!();
         ComponentParts { model, widgets }
@@ -436,36 +384,48 @@ impl Component for SchematicUiModel {
                 .unwrap();
                 self.set_json(json);
                 self.set_schematic(params.schematic);
+                self.set_package_name(params.package_name);
                 self.set_file(None);
-                self.hidden = false
+                self.set_success(false);
+                self.hidden = false;
+                self.loader = false;
+                self.browser.state().get_mut().model.clear();
             }
-            SchematicUiInput::ShowSave => {
+            SchematicUiInput::ShowSave(save_as) => {
                 let command = self.extract_values(widgets);
+                let mut description: Option<String> = None;
+                let browser_model = &self.browser.state().get().model;
+                let path = browser_model.get_loaded_profile_path();
+                if browser_model.is_profile_loaded() {
+                    description = Some(
+                        browser_model.get_loaded_profile_data(&path)["meta"]["description"]
+                            .as_str()
+                            .unwrap()
+                            .to_string(),
+                    );
+                }
                 self.save
                     .sender()
                     .send(SaveDialogInput::Show(SaveDialogInputParams {
                         form_data: command.to_toml(),
                         schematic: self.schematic.clone(),
-                        file: self.file.clone(),
+                        package_name: self.package_name.clone(),
+                        file: browser_model.get_loaded_profile_file_as_option(),
+                        description,
+                        auto_save: browser_model.is_profile_loaded() && !save_as,
                     }))
                     .unwrap();
             }
             SchematicUiInput::ShowBrowser => {
-                let mut profiles = self.load_profiles();
-                profiles.sort();
-
-                self.list_view_wrapper.clear();
-                self.list_view_wrapper.clear_filters();
-
-                for profile in profiles {
-                    self.list_view_wrapper
-                        .append(ProfileDataListItem::new(profile));
-                }
+                let _ = self.browser.sender().send(ProfileBrowserInput::Show(
+                    ProfileBrowserInputParams::new(
+                        self.schematic.clone(),
+                        self.package_name.clone(),
+                        false,
+                        None,
+                    ),
+                ));
                 self.loader = true;
-                // self.load
-                //     .sender()
-                //     .send(ProfileBrowserInput::Show(config_dir))
-                //     .unwrap();
             }
             SchematicUiInput::HideBrowser => {
                 self.loader = false;
@@ -478,31 +438,21 @@ impl Component for SchematicUiModel {
                     .emit(SchematicUiOutput::Params(command.to_params()));
             }
             SchematicUiInput::Saved(file) => {
+                println!("{}", file);
+                let _ = self.browser.sender().send(ProfileBrowserInput::Show(
+                    ProfileBrowserInputParams::new(
+                        self.schematic.clone(),
+                        self.package_name.clone(),
+                        false,
+                        Some(file.clone()),
+                    ),
+                ));
                 self.set_file(Some(file));
+                self.print_success("Saved");
             }
-            SchematicUiInput::Loaded(data) => {}
-            SchematicUiInput::Selected(selected) => {
-                let selected_item = self
-                    .list_view_wrapper
-                    .get(selected)
-                    .unwrap()
-                    .borrow()
-                    .value
-                    .clone();
-                let profile_index = self
-                    .profiles
-                    .iter()
-                    .position(|p| p.file == selected_item.file)
-                    .unwrap();
-                self.load_values(widgets, profile_index);
-                // println!("{:?}, {:?}", selected_item, self.profiles[profile_index]);
-            }
-            SchematicUiInput::FilterChange => {
-                let query_str = self.search.text().to_string();
-                self.list_view_wrapper.pop_filter();
-                self.list_view_wrapper
-                    .add_filter(move |item| item.value.label.starts_with(&query_str));
-                self.list_view_wrapper.set_filter_status(0, true);
+            SchematicUiInput::Selected(selected, file) => {
+                self.load_values(widgets, selected);
+                self.set_file(Some(file));
             }
         }
 

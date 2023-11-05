@@ -1,25 +1,33 @@
-use crate::command_builder::{CommandBuilder, Param};
+use crate::command_builder::{CommandBuilder, InputType, Param};
 use crate::form_utils::FormUtils;
 use crate::impl_validation;
+use crate::schema_parsing::FsEntry;
 use crate::settings_utils::SettingsData;
 use crate::traits::Validator;
 use relm4::gtk::prelude::{
     BoxExt, ButtonExt, Cast, DialogExt, DisplayExt, EditableExt, EntryBufferExtManual, EntryExt,
     FileChooserExt, FileExt, GtkWindowExt, OrientableExt, TextBufferExt, TextViewExt, WidgetExt,
 };
-use relm4::gtk::{Align, EntryBuffer, ResponseType, TextBuffer, Window};
+use relm4::gtk::{Align, EntryBuffer, Inhibit, ResponseType, TextBuffer, Window};
 use relm4::RelmWidgetExt;
 use relm4::{gtk, Component, ComponentParts, ComponentSender};
 use std::path::Path;
 use std::process::{Command, Output};
 
-async fn run_schematic(command: String, cwd: String, params: Vec<Param>) -> Output {
-    // TODO: read executor from settings!
-    let mut cmd = Command::new("fnd");
+async fn run_schematic(
+    executor: String,
+    command: String,
+    cwd: String,
+    params: Vec<Param>,
+) -> Output {
+    println!(
+        "executor: {} cwd: {}, command: {}, {:?}",
+        executor, cwd, command, params
+    );
+    let mut cmd = Command::new(executor);
 
     cmd.current_dir(cwd);
     cmd.arg(command);
-    cmd.arg("--dryRun");
 
     for param in params {
         cmd.arg(format!("--{}", param.name));
@@ -45,8 +53,10 @@ pub struct SchematicExecutorModel {
     cwd_buf: EntryBuffer,
     error_buf: TextBuffer,
     error: bool,
-    error_message: String,
+    success: bool,
+    message: String,
     settings: Option<SettingsData>,
+    use_dry_run: bool,
 }
 
 impl SchematicExecutorModel {
@@ -66,6 +76,15 @@ impl SchematicExecutorModel {
         }
         true
     }
+
+    fn has_dry_run(&self) -> bool {
+        if self.settings.is_none() {
+            return false;
+        }
+
+        let settings = self.settings.clone().unwrap();
+        settings.google_runner || settings.mbh_runner
+    }
 }
 
 impl_validation!(SchematicExecutorModel);
@@ -81,6 +100,8 @@ pub struct SchematicExecutorInputParams {
 pub enum SchematicExecutorInput {
     Show(SchematicExecutorInputParams),
     Execute,
+    ClearOutput,
+    AllowGoogleOptions(bool),
     SetCwd(String),
     CopyToClipboard,
 }
@@ -100,6 +121,7 @@ impl Component for SchematicExecutorModel {
         r = gtk::Box {
           set_hexpand: true,
           set_orientation: gtk::Orientation::Vertical,
+          set_css_classes: &["content_area"],
           gtk::Label {
             #[watch]
             set_visible: model.hidden,
@@ -113,13 +135,6 @@ impl Component for SchematicExecutorModel {
             set_visible: !model.hidden,
             set_orientation: gtk::Orientation::Vertical,
             set_spacing: 5,
-            gtk::Label {
-              set_hexpand: true,
-              set_vexpand: false,
-              set_css_classes: &["label", "label_title"],
-              set_halign: gtk::Align::Start,
-              set_label: "Command"
-            },
             gtk::Revealer {
               set_transition_type: gtk::RevealerTransitionType::SlideDown,
               #[watch]
@@ -130,7 +145,7 @@ impl Component for SchematicExecutorModel {
                 set_css_classes: &["label", "error"],
                 set_halign: gtk::Align::Center,
                 #[watch]
-                set_label: &format!("Error: {}", &model.error_message)
+                set_label: &format!("Error: {}", &model.message)
               },
             },
             gtk::Label {
@@ -157,7 +172,10 @@ impl Component for SchematicExecutorModel {
                     set_tooltip: "Browse file",
                     set_css_classes: &["button", "action_icon", "row_button"],
                     connect_clicked[sender] => move |button| {
-                      let dialog = FormUtils::new().file_chooser("Schematics runner",&button.root().unwrap().downcast::<Window>().unwrap(),None,None);
+                      let dialog = FormUtils::new().file_chooser("Working directory",&button.root().unwrap().downcast::<Window>().unwrap(),None,Some(FsEntry {
+                        is_dir: true,
+                        ..Default::default()
+                      }));
                       let send = sender.clone();
                       dialog.connect_response(move |file_chooser, resp| {
                           match resp {
@@ -174,7 +192,7 @@ impl Component for SchematicExecutorModel {
 
                     }
                   },
-            },
+                },
             gtk::Box {
               set_orientation: gtk::Orientation::Horizontal,
               gtk::Entry {
@@ -197,16 +215,57 @@ impl Component for SchematicExecutorModel {
                 }
               },
             },
-            gtk::Button {
-              set_hexpand: false,
-              set_vexpand: false,
-              set_label: "Execute",
-              set_css_classes: &["button", "action"],
-              connect_clicked[sender] => move |_| {
-                let _ = sender.input_sender().send(SchematicExecutorInput::Execute);
-              },
+            gtk::Box {
+              set_orientation: gtk::Orientation::Vertical,
+              #[watch]
+              set_visible: model.has_dry_run(),
+              gtk::Label {
+                    set_hexpand: true,
+                    set_vexpand: false,
+                    set_css_classes: &["label"],
+                    set_halign: gtk::Align::Start,
+                    set_label: "Use dry run"
+                },
+                append: dry_run = &gtk::Switch {
+                    set_hexpand: false,
+                    set_vexpand: false,
+                    set_active: false,
+                    set_halign: gtk::Align::End,
+                    set_valign: gtk::Align::Start,
+                    set_css_classes: &["switch"],
+                    connect_state_set[sender] => move |_,state| {
+                      sender.input(SchematicExecutorInput::AllowGoogleOptions(state));
+                      Inhibit(false)
+                    }
+                },
+            },
+              gtk::Box {
+              set_orientation: gtk::Orientation::Horizontal,
               set_halign: Align::End,
               set_valign: Align::Start,
+                gtk::Button {
+                  set_hexpand: false,
+                  set_vexpand: false,
+                  set_label: "Clear",
+                  set_css_classes: &["button", "action"],
+                  connect_clicked[sender] => move |_| {
+                    let _ = sender.input_sender().send(SchematicExecutorInput::ClearOutput);
+                  },
+                  set_tooltip_text: Some("Clear output and errors"),
+                  #[watch]
+                  set_visible: model.submitted && !model.executing,
+              },
+              gtk::Button {
+                set_hexpand: false,
+                set_vexpand: false,
+                set_label: "Execute",
+                set_tooltip_text: Some("Run schematic"),
+                set_css_classes: &["button", "action"],
+                connect_clicked[sender] => move |_| {
+                  let _ = sender.input_sender().send(SchematicExecutorInput::Execute);
+                },
+
+              },
             },
             gtk::Spinner {
               set_height_request: 100,
@@ -273,8 +332,10 @@ impl Component for SchematicExecutorModel {
             output_buf: TextBuffer::default(),
             error_buf: TextBuffer::default(),
             error: false,
-            error_message: String::default(),
+            success: true,
+            message: String::default(),
             settings: None,
+            use_dry_run: false,
         };
         let widgets = view_output!();
 
@@ -333,16 +394,40 @@ impl Component for SchematicExecutorModel {
                 self.executing = true;
                 self.submitted = true;
 
-                let params = self.builder.to_params();
+                let mut params = self.builder.to_params();
+
+                if self.has_dry_run() && self.use_dry_run {
+                    params.push(Param::new(
+                        String::from("dry-run"),
+                        String::from("true"),
+                        InputType::Text,
+                    ));
+                    params.push(Param::new(
+                        String::from("no-interactive"),
+                        String::from("true"),
+                        InputType::Text,
+                    ));
+                }
+
+                // println!("params: {:?} {} {}", params, self.has_dry_run(), self.use_dry_run);
+
                 let command = self.builder.get_command();
+                let executor = self.settings.as_ref().unwrap().runner_location.clone();
 
                 sender.oneshot_command(async move {
-                    CommandMsg::Data(run_schematic(command, cwd, params).await)
+                    CommandMsg::Data(run_schematic(executor, command, cwd, params).await)
                 });
             }
             SchematicExecutorInput::CopyToClipboard => {
                 let clip = gtk::gdk::Display::default().unwrap().clipboard();
                 clip.set_text(&self.command_buf.text());
+            }
+            SchematicExecutorInput::AllowGoogleOptions(allow) => {
+                self.use_dry_run = allow;
+            }
+            SchematicExecutorInput::ClearOutput => {
+                self.output_buf.set_text("");
+                self.error_buf.set_text("");
             }
             SchematicExecutorInput::SetCwd(path) => {
                 self.cwd_buf.set_text(path);

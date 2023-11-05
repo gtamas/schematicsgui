@@ -1,6 +1,6 @@
 use gtk::prelude::{ApplicationExt, BoxExt, GtkWindowExt, OrientableExt};
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
-use relm4::gtk::traits::{ApplicationWindowExt, FrameExt, GtkApplicationExt, WidgetExt};
+use relm4::gtk::traits::{FrameExt, GtkApplicationExt, WidgetExt};
 use relm4::gtk::{CssProvider, ShortcutsSection, ShortcutsWindow};
 use relm4::{
     gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller, RelmApp,
@@ -33,7 +33,7 @@ enum AppMsg {
 
 fn load_css() {
     let provider = CssProvider::new();
-    provider.load_from_data(include_str!("style.css"));
+    provider.load_from_data(include_str!("../resources/style.css"));
 
     gtk::style_context_add_provider_for_display(
         &gtk::gdk::Display::default().unwrap(),
@@ -44,12 +44,20 @@ fn load_css() {
 
 struct AppModel {
     mode: AppMode,
+    settings_util: SettingsUtils,
     dialog: Controller<SettingsModel>,
     selector: Controller<SchematicSelectorModel>,
     tabs: Controller<SchematicsDetailsModel>,
 }
 
-impl AppModel {}
+impl AppModel {
+    fn get_details_title(&self) -> String {
+        match &self.mode {
+            AppMode::ShowSchematic(schematic) => format!("Details: {}", schematic.clone()),
+            _ => String::from("Details"),
+        }
+    }
+}
 
 #[relm4::component]
 impl SimpleComponent for AppModel {
@@ -63,23 +71,27 @@ impl SimpleComponent for AppModel {
             set_default_height: 800,
             set_resizable: true,
             set_maximized: true,
-            #[watch]
             set_can_focus: true,
             set_title: Some("Schematics GUI"),
 
             gtk::Box {
+                #[watch]
+                set_visible: model.settings_util.exists(),
                 set_orientation: gtk::Orientation::Vertical,
                 set_spacing: 5,
                 gtk::Paned {
                   set_orientation: gtk::Orientation::Horizontal,
                   #[wrap(Some)]
                   set_start_child: selector = &gtk::Frame {
+                    set_size_request[700]: 300,
                     set_hexpand: true,
+                    set_hexpand_set: true,
                     set_css_classes: &["selector_container"],
                     #[wrap(Some)]
                     set_label_widget: label = &gtk::Box {
                       set_css_classes: &["left_header_container"],
                       set_hexpand: true,
+                      set_hexpand_set: true,
                       gtk::Label {
                         set_css_classes: &["left_header_label"],
                         set_label: &"Schematics",
@@ -87,7 +99,6 @@ impl SimpleComponent for AppModel {
                         set_xalign: 0.0,
                       },
                     },
-                    // set_size_request[300]: 700,
                     set_child: Some(model.selector.widget())
                   },
                   set_resize_start_child: true,
@@ -95,8 +106,20 @@ impl SimpleComponent for AppModel {
                   #[wrap(Some)]
                   set_end_child: details = &gtk::Frame {
                     set_css_classes: &["tabs_container"],
-                    set_label: Some("Details"),
-                    // set_size_request[600]: 700,
+                    #[wrap(Some)]
+                    set_label_widget: other = &gtk::Box {
+                      set_css_classes: &["right_header_container"],
+                      set_hexpand: true,
+                      set_hexpand_set: true,
+                      gtk::Label {
+                        set_css_classes: &["right_header_label"],
+                         #[watch]
+                        set_label: &model.get_details_title(),
+                        set_hexpand: true,
+                        set_xalign: 1.0,
+                      },
+                    },
+                    set_size_request[700]: 700,
                     set_child: Some(model.tabs.widget())
                   },
                   set_resize_end_child: true,
@@ -145,6 +168,7 @@ impl SimpleComponent for AppModel {
 
         let model = AppModel {
             mode: params,
+            settings_util: SettingsUtils::new(),
             dialog,
             selector,
             tabs,
@@ -227,11 +251,10 @@ impl SimpleComponent for AppModel {
                             .unwrap();
                     }
                     AppMode::Initial => {
-                        let settings_util = SettingsUtils::new();
-                        if !settings_util.exists() {
+                        if !self.settings_util.exists() {
                             self.dialog.sender().send(SettingsInput::Show).unwrap();
                         } else {
-                            let settings = settings_util.read();
+                            let settings = self.settings_util.read();
                             self.selector
                                 .sender()
                                 .send(SchematicSelectorInput::Show(settings.clone()))

@@ -1,5 +1,5 @@
 use relm4::gtk::prelude::{EntryBufferExtManual, GridExt, OrientableExt, WidgetExt};
-use relm4::gtk::Justification;
+use relm4::gtk::{Justification, LinkButton};
 use relm4::{gtk, ComponentParts, ComponentSender, SimpleComponent};
 
 use crate::form_utils::FormUtils;
@@ -16,11 +16,12 @@ pub struct PackageInfoModel {
     repo: gtk::EntryBuffer,
     homepage: gtk::EntryBuffer,
     bugs: gtk::EntryBuffer,
+    utils: FormUtils,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct PartialPackageJsonData {
-    name: String,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PartialPackageJsonData {
+    pub name: String,
     version: String,
     description: Option<String>,
     author: Option<AuthorType>,
@@ -29,41 +30,41 @@ struct PartialPackageJsonData {
     repository: Option<RepoType>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RepoObject {
     pub url: String,
     pub r#type: Option<String>,
     pub directory: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum RepoType {
     Obj(RepoObject),
     String(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BugsObject {
     pub url: String,
     pub email: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum BugsType {
     Obj(BugsObject),
     String(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AuthorObject {
     pub name: String,
     pub email: Option<String>,
     pub url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum AuthorType {
     Obj(AuthorObject),
@@ -109,7 +110,9 @@ pub enum PackageInfoInput {
 }
 
 #[derive(Debug)]
-pub enum PackageInfoOutput {}
+pub enum PackageInfoOutput {
+    PackageData(PartialPackageJsonData),
+}
 
 #[relm4::component(pub)]
 impl SimpleComponent for PackageInfoModel {
@@ -122,55 +125,51 @@ impl SimpleComponent for PackageInfoModel {
         gtk::Box {
           set_orientation: gtk::Orientation::Horizontal,
           set_hexpand: true,
-          set_margin_top: 10,
-          set_margin_start: 10,
+          set_css_classes: &["content_area"],
           gtk::Grid {
              set_row_spacing: 10,
              set_column_spacing: 10,
              set_hexpand: true,
              set_orientation: gtk::Orientation::Horizontal,
-             attach[ 0, 0, 1, 1]: &FormUtils::new().label("Package name:", "packageName", Some(Justification::Right), Some(vec! ["label_right"])),
+             attach[ 0, 0, 1, 1]: &model.utils.label("Package name:", "packageName", Some(Justification::Right), Some(vec! ["label_right"])),
              attach[ 1, 0, 1, 1] = &gtk::Text {
                 set_halign: gtk::Align::Start,
                 set_buffer: &model.pkg_name,
                 set_width_request: 400,
              },
-            attach[ 0, 1, 1, 1]: &FormUtils::new().label("Description:", "desc", Some(Justification::Right), Some(vec! ["label_right"])),
+            attach[ 0, 1, 1, 1]: &model.utils.label("Description:", "desc", Some(Justification::Right), Some(vec! ["label_right"])),
             attach[ 1, 1, 1, 1] = &gtk::Text {
                 set_halign: gtk::Align::Start,
                 set_buffer: &model.description,
                 set_width_request: 400,
              },
-            attach[ 0, 2, 1, 1]: &FormUtils::new().label("Version:", "version", Some(Justification::Right), Some(vec! ["label_right"])),
+            attach[ 0, 2, 1, 1]: &model.utils.label("Version:", "version", Some(Justification::Right), Some(vec! ["label_right"])),
             attach[ 1, 2, 1, 1] = &gtk::Text {
                 set_halign: gtk::Align::Start,
                 set_buffer: &model.version,
                 set_width_request: 400,
              },
-            attach[ 0, 3, 1, 1]: &FormUtils::new().label("Author:", "author", Some(Justification::Right), Some(vec! ["label_right"])),
+            attach[ 0, 3, 1, 1]: &model.utils.label("Author:", "author", Some(Justification::Right), Some(vec! ["label_right"])),
             attach[ 1, 3, 1, 1] = &gtk::Text {
                 set_halign: gtk::Align::Start,
                 set_buffer: &model.author,
                 set_width_request: 400,
              },
-            attach[ 0, 4, 1, 1]: &FormUtils::new().label("Repository:", "repo", Some(Justification::Right), Some(vec! ["label_right"])),
-            attach[ 1, 4, 1, 1] = &gtk::Text {
-                set_halign: gtk::Align::Start,
-                set_buffer: &model.repo,
-                set_width_request: 400,
+            attach[ 0, 4, 1, 1]: &model.utils.label("Repository:", "repo", Some(Justification::Right), Some(vec! ["label_right"])),
+            attach[ 1, 4, 1, 1] = &model.utils.get_link_button("", Some("Repository")) -> LinkButton {
+                #[watch]
+                set_uri: &model.repo.text()
             },
-            attach[ 0, 5, 1, 1]: &FormUtils::new().label("Homepage:", "homepage", Some(Justification::Right), Some(vec! ["label_right"])),
-            attach[ 1, 5, 1, 1] = &gtk::Text {
-                set_halign: gtk::Align::Start,
-                set_buffer: &model.homepage,
-                set_width_request: 400,
-             },
-            attach[ 0, 6, 1, 1]: &FormUtils::new().label("Bugs:", "bugs", Some(Justification::Right), Some(vec! ["label_right"])),
-            attach[ 1, 6, 1, 1] = &gtk::Text {
-                set_halign: gtk::Align::Start,
-                set_buffer: &model.bugs,
-                set_width_request: 400,
-             }
+            attach[ 0, 5, 1, 1]: &model.utils.label("Homepage:", "homepage", Some(Justification::Right), Some(vec! ["label_right"])),
+            attach[ 1, 5, 1, 1] = &model.utils.get_link_button("", Some("Homepage")) -> LinkButton {
+                #[watch]
+                set_uri: &model.homepage.text()
+            },
+            attach[ 0, 6, 1, 1]: &model.utils.label("Bugs:", "bugs", Some(Justification::Right), Some(vec! ["label_right"])),
+            attach[ 1, 6, 1, 1] = &model.utils.get_link_button("", Some("Bugs")) -> LinkButton {
+                #[watch]
+                set_uri: &model.bugs.text()
+            },
           }
         }
     }
@@ -189,16 +188,18 @@ impl SimpleComponent for PackageInfoModel {
             bugs: gtk::EntryBuffer::default(),
             description: gtk::EntryBuffer::default(),
             homepage: gtk::EntryBuffer::default(),
+            utils: FormUtils::new(),
         };
         let widgets = view_output!();
         ComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>) {
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             PackageInfoInput::Show(path) => {
                 println!("{}", path);
                 let package_json: PartialPackageJsonData = self.read_package_json(path);
+                let _ = sender.output(PackageInfoOutput::PackageData(package_json.clone()));
                 self.populate_view(package_json);
                 self.hidden = false;
             }

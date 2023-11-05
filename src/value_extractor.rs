@@ -1,7 +1,7 @@
 use relm4::gtk::glib::GString;
 use relm4::gtk::prelude::{
-    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt,
-    RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
+    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt, RangeExt,
+    TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
 };
 use relm4::gtk::{
     Box, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range, SpinButton,
@@ -20,6 +20,13 @@ pub struct ValueExtractor<'l> {
 impl<'l> WidgetUtils for ValueExtractor<'l> {}
 
 impl<'l> ValueExtractor<'l> {
+    fn get_optional_param_value(&self, value: String, result: Param) -> Option<Param> {
+        match value.is_empty() {
+            true => None,
+            false => Some(result),
+        }
+    }
+
     pub fn new(widget: &'l Widget) -> Self {
         ValueExtractor { widget }
     }
@@ -28,38 +35,35 @@ impl<'l> ValueExtractor<'l> {
         self.widget = widget
     }
 
-    pub fn get_name_value(&self) -> Param {
+    pub fn get_name_value(&self) -> Option<Param> {
         let name = self.widget.widget_name().to_string();
         if self.is_a::<_, Entry>(self.widget) {
-            Param {
-                name,
-                value: self.get_entry_value(None),
-                kind: InputType::Text,
-            }
+            let value = self.get_entry_value(None).to_owned();
+            self.get_optional_param_value(value.clone(), Param::new(name, value, InputType::Text))
         } else if self.is_a::<_, TextView>(self.widget) {
-            Param {
-                name,
-                value: self.get_text_view_value(),
-                kind: InputType::TextArea,
-            }
+            let value = self.get_text_view_value();
+            self.get_optional_param_value(
+                value.clone(),
+                Param::new(name, value, InputType::TextArea),
+            )
         } else if self.is_a::<_, Switch>(self.widget) {
-            Param {
+            Some(Param {
                 name,
                 value: self.get_switch_value(),
                 kind: InputType::Switch,
-            }
+            })
         } else if self.is_a::<_, ColorButton>(self.widget) {
-            Param {
-                name,
-                value: self.get_color_button_value(),
-                kind: InputType::ColorButton,
-            }
+            let value = self.get_color_button_value();
+            self.get_optional_param_value(
+                value.clone(),
+                Param::new(name, value, InputType::ColorButton),
+            )
         } else if self.is_a::<_, Box>(self.widget) {
             let container = self.widget.clone().downcast::<Box>().unwrap();
             let kind = container.css_classes();
 
             if kind.contains(&GString::from("slider_input_container")) {
-                Param {
+                Some(Param {
                     name: container
                         .first_child()
                         .unwrap()
@@ -69,18 +73,18 @@ impl<'l> ValueExtractor<'l> {
                         .to_string(),
                     value: self.get_slider_value(&container),
                     kind: InputType::Slider,
-                }
+                })
             } else if kind.contains(&GString::from("radio_group_container"))
                 || kind.contains(&GString::from("toggle_group_container"))
             {
-                Param {
+                Some(Param {
                     name: container.first_child().unwrap().widget_name().to_string(),
                     value: self.get_group_value(&container),
                     kind: match kind.contains(&GString::from("radio_group_container")) {
                         true => InputType::RadioGroup,
                         false => InputType::ToggleGroup,
                     },
-                }
+                })
             } else if kind.contains(&GString::from("date_input_container"))
                 || kind.contains(&GString::from("file_input_container"))
                 || kind.contains(&GString::from("dir_input_container"))
@@ -96,46 +100,44 @@ impl<'l> ValueExtractor<'l> {
                 } else {
                     k = InputType::Dir;
                 }
-                Param {
-                    name: container.first_child().unwrap().widget_name().to_string(),
-                    value: self.get_entry_value(container.first_child()),
-                    kind: k,
-                }
+                let value = self.get_entry_value(container.first_child());
+                let name = container.first_child().unwrap().widget_name().to_string();
+                self.get_optional_param_value(value.clone(), Param::new(name, value, k))
             } else {
-                Param::default()
+                Some(Param::default())
             }
         } else if self.is_a::<_, CheckButton>(self.widget) {
-            Param {
+            Some(Param {
                 name,
                 value: self.get_check_button_value(),
                 kind: InputType::Checkbox,
-            }
+            })
         } else if self.is_a::<_, ToggleButton>(self.widget) {
-            Param {
+            Some(Param {
                 name,
                 value: self.get_toggle_button_value(),
                 kind: InputType::Toggle,
-            }
+            })
         } else if self.is_a::<_, SpinButton>(self.widget) {
-            Param {
-                name,
-                value: self.get_numeric_input(),
-                kind: InputType::Numeric,
-            }
+            let value = self.get_numeric_input();
+            self.get_optional_param_value(
+                value.clone(),
+                Param::new(name, value, InputType::Numeric),
+            )
         } else if self.is_a::<_, DropDown>(self.widget) {
-            Param {
+            Some(Param {
                 name,
                 value: self.get_dropdown_value(),
                 kind: InputType::DropDown,
-            }
+            })
         } else if self.is_a::<_, ComboBoxText>(self.widget) {
-            Param {
+            Some(Param {
                 name,
                 value: self.get_combo_box_value(),
                 kind: InputType::Combobox,
-            }
+            })
         } else {
-            Param::default()
+            Some(Param::default())
         }
     }
 

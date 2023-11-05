@@ -28,7 +28,8 @@ pub struct SettingsModel {
     custom_runner: bool,
     group: gtk::CheckButton,
     error: bool,
-    error_message: String,
+    success: bool,
+    message: String,
 }
 
 impl SettingsModel {
@@ -140,7 +141,7 @@ impl SimpleComponent for SettingsModel {
                   set_css_classes: &["label", "error"],
                   set_halign: gtk::Align::Center,
                   #[watch]
-                  set_label: &format!("Error: {}", &model.error_message)
+                  set_label: &format!("Error: {}", &model.message)
                 },
               },
               gtk::Grid {
@@ -326,7 +327,8 @@ impl SimpleComponent for SettingsModel {
             custom_runner: true,
             group: gtk::CheckButton::new(),
             error: false,
-            error_message: String::default(),
+            success: false,
+            message: String::default(),
         };
 
         SettingsUtils::new().init();
