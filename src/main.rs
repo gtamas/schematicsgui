@@ -234,8 +234,6 @@ impl SimpleComponent for AppModel {
 
         app.set_menubar(Some(&main_menu));
 
-        println!("{:?}", app.list_action_descriptions());
-
         ComponentParts { model, widgets }
     }
 

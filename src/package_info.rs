@@ -197,7 +197,6 @@ impl SimpleComponent for PackageInfoModel {
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             PackageInfoInput::Show(path) => {
-                println!("{}", path);
                 let package_json: PartialPackageJsonData = self.read_package_json(path);
                 let _ = sender.output(PackageInfoOutput::PackageData(package_json.clone()));
                 self.populate_view(package_json);

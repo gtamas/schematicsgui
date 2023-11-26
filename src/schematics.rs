@@ -80,11 +80,10 @@ impl Collection {
     }
 
     pub fn has_schematic(&self, schematic: &str) -> bool {
-        let result = match self.list_schematic_names().iter().find(|x| *x == schematic) {
+        match self.list_schematic_names().iter().find(|x| *x == schematic) {
             Some(_) => true,
             None => false,
-        };
-        result
+        }
     }
 
     pub fn read_str(path: &str) -> String {

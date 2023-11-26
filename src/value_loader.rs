@@ -1,12 +1,12 @@
 use relm4::gtk::glib::object::Object;
-use relm4::gtk::glib::GString;
+use relm4::gtk::glib::{DateTime, GString, TimeZone};
 use relm4::gtk::prelude::{
     ButtonExt, Cast, CheckButtonExt, ColorChooserExt, ComboBoxExt, EntryBufferExtManual, EntryExt,
     IsA, ListModelExtManual, RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
 };
 use relm4::gtk::{
-    Box, Button, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range,
-    SpinButton, StringList, StringObject, Switch, TextView, ToggleButton, Widget,
+    Box, Button, Calendar, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer,
+    Range, SpinButton, StringList, StringObject, Switch, TextView, ToggleButton, Widget,
 };
 
 use crate::form_utils::FormUtils;
@@ -43,12 +43,17 @@ impl<'l> ValueLoader<'l> {
 
             if kind.contains(&GString::from("slider_input_container")) {
                 self.set_slider_value(value, &container);
+            } else if kind.contains(&GString::from("time_input_container")) {
+                self.set_time_value(value, &container);
+            } else if kind.contains(&GString::from("date_time_input_container")) {
+                self.set_date_time_value(value, &container);
+            } else if kind.contains(&GString::from("date_input_container")) {
+                self.set_date_value(value, &container);
             } else if kind.contains(&GString::from("radio_group_container"))
                 || kind.contains(&GString::from("toggle_group_container"))
             {
                 self.set_group_value(value, &container);
-            } else if kind.contains(&GString::from("date_input_container"))
-                || kind.contains(&GString::from("file_input_container"))
+            } else if kind.contains(&GString::from("file_input_container"))
                 || kind.contains(&GString::from("dir_input_container"))
                 || kind.contains(&GString::from("color_input_container"))
             {
@@ -101,6 +106,83 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
+    fn set_date_time_value(&self, value: &Value, container: &Box) -> () {
+        let default_date = FormUtils::format_date(String::from(""), &DateTime::now_utc().unwrap());
+        let vale_str = value.as_str().unwrap_or(default_date.as_str());
+        let v = vale_str.split(" ").collect::<Vec<&str>>();
+
+        self.set_date_value(value, container);
+
+        self.set_time_value(
+            &Value::String(String::from(v[1])),
+            &container
+                .first_child()
+                .unwrap()
+                .next_sibling()
+                .unwrap()
+                .downcast::<Box>()
+                .unwrap(),
+        );
+    }
+
+    fn set_date_value(&self, value: &Value, container: &Box) -> () {
+        let default_date =
+            FormUtils::format_date(String::from("%Y-%m-%d"), &DateTime::now_utc().unwrap());
+        let vale_str = format!(
+            "{} 00:00:00",
+            value.as_str().unwrap_or(default_date.as_str())
+        );
+
+        let calendar = container
+            .first_child()
+            .unwrap()
+            .downcast::<Calendar>()
+            .unwrap();
+
+        let d = DateTime::from_iso8601(&vale_str, Some(&TimeZone::utc()));
+        calendar.select_day(&d.unwrap());
+    }
+
+    fn set_time_value(&self, value: &Value, container: &Box) -> () {
+        let mut v = value
+            .as_str()
+            .unwrap_or("0:0:0")
+            .split(":")
+            .collect::<Vec<&str>>();
+
+        if v.len() != 3 {
+            v = vec!["0", "0", "0"];
+        }
+
+        let buttons = [
+            container
+                .first_child()
+                .unwrap()
+                .downcast::<SpinButton>()
+                .unwrap(),
+            container
+                .first_child()
+                .unwrap()
+                .next_sibling()
+                .unwrap()
+                .downcast::<SpinButton>()
+                .unwrap(),
+            container
+                .first_child()
+                .unwrap()
+                .next_sibling()
+                .unwrap()
+                .next_sibling()
+                .unwrap()
+                .downcast::<SpinButton>()
+                .unwrap(),
+        ];
+
+        for (index, button) in buttons.iter().enumerate() {
+            button.set_value(v[index].parse::<f64>().unwrap_or_default());
+        }
+    }
+
     fn set_toggle_button_value(&self, value: &Value) -> () {
         let toggle = self.widget.clone().downcast::<ToggleButton>().unwrap();
         toggle.set_active(
@@ -147,7 +229,6 @@ impl<'l> ValueLoader<'l> {
 
     fn set_combo_box_value(&self, value: &Value) -> () {
         let combo: ComboBoxText = self.widget.clone().downcast::<ComboBoxText>().unwrap();
-        println!("{:?}", combo.id_column());
         combo.set_active_id(Some("1"));
         // combo.set_active(Some(0));
     }

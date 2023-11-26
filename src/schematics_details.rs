@@ -14,6 +14,7 @@ use crate::package_info::{
 use crate::schema_view::{SchemaViewInput, SchemaViewModel};
 use crate::schematic_executor::{
     SchematicExecutorInput, SchematicExecutorInputParams, SchematicExecutorModel,
+    SchematicExecutorOutput,
 };
 use crate::schematic_ui::{
     SchematicUiInput, SchematicUiInputParams, SchematicUiModel, SchematicUiOutput,
@@ -65,6 +66,7 @@ pub enum SchematicsDetailsInput {
     ShowSchematic(String),
     ShowExecutor(Vec<Param>),
     SetPackage(PartialPackageJsonData),
+    BacktToUi,
 }
 
 #[derive(Debug)]
@@ -117,7 +119,7 @@ impl SimpleComponent for SchematicsDetailsModel {
 
         let schematic_ui = SchematicUiModel::builder().launch(true).forward(
             sender.input_sender(),
-            |msg| match msg {
+            |msg: SchematicUiOutput| match msg {
                 SchematicUiOutput::Params(p) => SchematicsDetailsInput::ShowExecutor(p),
             },
         );
@@ -126,7 +128,7 @@ impl SimpleComponent for SchematicsDetailsModel {
             SchematicExecutorModel::builder()
                 .launch(true)
                 .forward(sender.input_sender(), |msg| match msg {
-                    _ => SchematicsDetailsInput::Show(None),
+                    SchematicExecutorOutput::BackToUi => SchematicsDetailsInput::BacktToUi,
                 });
 
         let model = SchematicsDetailsModel {
@@ -184,6 +186,9 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .unwrap();
 
                 self.hidden = false
+            }
+            SchematicsDetailsInput::BacktToUi => {
+                self.show_ui();
             }
             SchematicsDetailsInput::SetPackage(data) => {
                 self.package = Some(data);

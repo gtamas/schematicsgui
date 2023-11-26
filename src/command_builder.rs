@@ -37,6 +37,8 @@ pub enum InputType {
     Slider,
     Numeric,
     Switch,
+    Time,
+    DateTime,
 }
 
 impl Default for Param {

@@ -71,9 +71,7 @@ impl ProfileBrowserModel {
 
     pub fn get_loaded_profile_path(&self) -> PathBuf {
         let file = self.file.clone().unwrap_or(String::default());
-        SettingsUtils::get_config_dir()
-            .join(&self.schematic)
-            .join(&file)
+        self.get_profile_dir().join(&file)
     }
 
     pub fn get_loaded_profile_file_as_option(&self) -> Option<String> {

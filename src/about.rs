@@ -26,7 +26,7 @@ impl AppAboutDialog {
             authors.push(author);
         }
 
-        let file = gio::File::for_path(PathBuf::from("./resources/about.svg"));
+        let file = gio::File::for_path(PathBuf::from("./resources/logo.svg"));
 
         let img = match gdk::Texture::from_file(&file) {
             Ok(t) => t,

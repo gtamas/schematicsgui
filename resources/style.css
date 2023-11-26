@@ -339,3 +339,22 @@ tab:hover {
 .h100 {
   min-height: 100px;
 }
+
+/* DateTime Input */
+
+.date_time_input_container .numeric_input,
+.time_input_container .numeric_input {
+  margin-right: 0.5em;
+  padding-left: 0;
+}
+
+.date_time_input_container .numeric_input:last-child {
+  margin-right: 0;
+}
+
+.date_time_input_container .numeric_input button,
+.time_input_container .numeric_input button {
+  min-height: 25px;
+}
+
+

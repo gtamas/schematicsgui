@@ -17,6 +17,7 @@ use crate::save_dialog::{
 use crate::schema_parsing::SchemaProp;
 use crate::schematics::Collection;
 use crate::settings_utils::SettingsUtils;
+use crate::templates::TimeInput;
 use crate::traits::Validator;
 use crate::traits::WidgetUtils;
 use crate::value_extractor::ValueExtractor;
@@ -48,7 +49,9 @@ impl_validation!(SchematicUiModel);
 
 impl SchematicUiModel {
     pub fn has_profiles(&self) -> bool {
-        let path = SettingsUtils::get_config_dir().join(self.get_package_name()).join(self.get_schematic());
+        let path = SettingsUtils::get_config_dir()
+            .join(self.get_package_name())
+            .join(self.get_schematic());
         path.is_dir() && path.exists() && fs::read_dir(&path).unwrap().count() > 0
     }
 
@@ -200,7 +203,6 @@ pub enum SchematicUiInput {
     ShowBrowser,
     HideBrowser,
     Selected(usize, String),
-    // FilterChange,
     Saved(String),
 }
 
@@ -253,76 +255,84 @@ impl Component for SchematicUiModel {
               set_label: &format!("{}", &model.message)
             },
           },
-          gtk::Box {
-            #[watch]
-            set_visible: !model.hidden,
-            set_hexpand: true,
-            set_orientation: relm4::gtk::Orientation::Horizontal,
-            append: frame = &gtk::Frame {
-              set_hexpand: true,
-              set_css_classes: &["ui_container"],
-              #[track = "model.changed(SchematicUiModel::json())"]
-              set_child: Some(&model.build_form(&frame, &model.json).unwrap())
-            },
-             gtk::Revealer {
-                set_transition_type: gtk::RevealerTransitionType::SlideLeft,
-                #[watch]
-                set_reveal_child: model.loader,
-                set_child: Some(model.browser.widget())
+          gtk::ScrolledWindow {
+          #[watch]
+          set_visible: !model.hidden,
+          set_hscrollbar_policy: gtk::PolicyType::Never,
+            gtk::Box {
+                set_orientation: relm4::gtk::Orientation::Vertical,
+                gtk::Box {
+                set_visible: true,
+                set_hexpand: true,
+                set_orientation: relm4::gtk::Orientation::Horizontal,
+                append: frame = &gtk::Frame {
+                  set_hexpand: true,
+                  set_css_classes: &["ui_container"],
+                  #[track = "model.changed(SchematicUiModel::json())"]
+                  set_child: Some(&model.build_form(&frame, &model.json).unwrap())
+                },
+                gtk::Revealer {
+                    set_transition_type: gtk::RevealerTransitionType::SlideLeft,
+                    #[watch]
+                    set_reveal_child: model.loader,
+                    set_child: Some(model.browser.widget())
+                  },
               },
-          },
-          gtk::Box {
-            set_orientation: gtk::Orientation::Horizontal,
-            set_halign: Align::End,
-            set_valign: Align::Start,
-            #[watch]
-            set_visible: !model.hidden,
-            append: submit = &gtk::Button {
-              set_label: "Submit",
-              connect_clicked[sender] => move |_| {
-              sender.input(SchematicUiInput::Submit);
-              },
-              set_css_classes: &["action"]
-            },
-            append: save = &gtk::Button {
-              set_label: "Save",
-              set_tooltip_text: Some("Save current settings"),
-              connect_clicked[sender] => move |_| {
-                sender.input(SchematicUiInput::ShowSave(false));
-              },
-              set_css_classes: &["action"]
-            },
-            append: save_as = &gtk::Button {
-              set_label: "Save as..",
-              #[watch]
-              set_visible: model.browser.model().is_profile_loaded(),
-              set_tooltip_text: Some("Save settings as.."),
-              connect_clicked[sender] => move |_| {
-                sender.input(SchematicUiInput::ShowSave(true));
-              },
-              set_css_classes: &["action"]
-            },
-            append: load = &gtk::Button {
-              set_label: "Load",
-              #[watch]
-              set_visible: !model.loader && model.has_profiles(),
-              set_tooltip_text: Some("Load settings"),
-              connect_clicked[sender] => move |_| {
-                sender.input(SchematicUiInput::ShowBrowser);
-              },
-              set_css_classes: &["action"]
-            },
-            append: hide = &gtk::Button {
-              set_label: "Hide",
-              #[watch]
-              set_visible: model.loader,
-              set_tooltip_text: Some("`Hide browser"),
-              connect_clicked[sender] => move |_| {
-                sender.input(SchematicUiInput::HideBrowser);
-              },
-              set_css_classes: &["action"]
+              gtk::Box {
+                set_orientation: gtk::Orientation::Horizontal,
+                set_halign: Align::End,
+                set_valign: Align::Start,
+                append: submit = &gtk::Button {
+                  set_label: "Submit",
+                  connect_clicked[sender] => move |_| {
+                  sender.input(SchematicUiInput::Submit);
+                  },
+                  set_css_classes: &["action"]
+                },
+                append: save = &gtk::Button {
+                  set_label: "Save",
+                  set_tooltip_text: Some("Save current settings"),
+                  connect_clicked[sender] => move |_| {
+                    sender.input(SchematicUiInput::ShowSave(false));
+                  },
+                  set_css_classes: &["action"]
+                },
+                append: save_as = &gtk::Button {
+                  set_label: "Save as..",
+                  #[watch]
+                  set_visible: model.browser.model().is_profile_loaded(),
+                  set_tooltip_text: Some("Save settings as.."),
+                  connect_clicked[sender] => move |_| {
+                    sender.input(SchematicUiInput::ShowSave(true));
+                  },
+                  set_css_classes: &["action"]
+                },
+                append: load = &gtk::Button {
+                  set_label: "Load",
+                  #[watch]
+                  set_visible: !model.loader && model.has_profiles(),
+                  set_tooltip_text: Some("Load settings"),
+                  connect_clicked[sender] => move |_| {
+                    sender.input(SchematicUiInput::ShowBrowser);
+                  },
+                  set_css_classes: &["action"]
+                },
+                append: hide = &gtk::Button {
+                  set_label: "Hide",
+                  #[watch]
+                  set_visible: model.loader,
+                  set_tooltip_text: Some("`Hide browser"),
+                  connect_clicked[sender] => move |_| {
+                    sender.input(SchematicUiInput::HideBrowser);
+                  },
+                  set_css_classes: &["action"]
+                }
+              }
             }
+          
+
           }
+
         }
     }
 
@@ -438,7 +448,6 @@ impl Component for SchematicUiModel {
                     .emit(SchematicUiOutput::Params(command.to_params()));
             }
             SchematicUiInput::Saved(file) => {
-                println!("{}", file);
                 let _ = self.browser.sender().send(ProfileBrowserInput::Show(
                     ProfileBrowserInputParams::new(
                         self.schematic.clone(),

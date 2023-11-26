@@ -22,9 +22,9 @@ use relm4::gtk::{
 use relm4::gtk::gio::File;
 
 use crate::schema_parsing::{
-    ChoiceEntry, ColorEntry, ColorEntryFormat, CurrentValuePosType, DateEntry, FsEntry,
-    IconPositionType, JustificationType, MenuEntry, NumericEntry, NumericValueType,
-    OrientationType, Primitive, TextEntry,
+    ChoiceEntry, ColorEntry, ColorEntryFormat, CurrentValuePosType, DateEntry, DateEntryType,
+    FsEntry, IconPositionType, IntOrFloat, JustificationType, MenuEntry, NumericEntry,
+    NumericValueType, OrientationType, Primitive, TextEntry, TimeInput,
 };
 use crate::traits::WidgetUtils;
 
@@ -61,7 +61,7 @@ impl FormUtils {
         )
     }
 
-    fn format_date(format: String, date: &DateTime) -> GString {
+    pub fn format_date(format: String, date: &DateTime) -> GString {
         if format != "" {
             return date
                 .format(&format)
@@ -341,7 +341,7 @@ impl FormUtils {
         form
     }
 
-    pub fn date_input(
+    pub fn date_dialog_input(
         &self,
         name: &str,
         options: Option<DateEntry>,
@@ -795,6 +795,115 @@ impl FormUtils {
         switch
     }
 
+    pub fn date_input(
+        &self,
+        name: &str,
+        options: Option<DateEntry>,
+        default: Option<Primitive>,
+    ) -> Box {
+        let container = Box::default();
+
+        container.set_css_classes(&["date_input_container"]);
+        container.set_widget_name(name);
+        container.set_orientation(Orientation::Vertical);
+        container.set_hexpand(false);
+        container.set_halign(Align::Start);
+        let calendar = Calendar::new();
+        calendar.set_hexpand(false);
+        calendar.set_vexpand(false);
+        calendar.set_halign(Align::Fill);
+        calendar.set_valign(Align::Start);
+
+        if default.is_some() {
+            let def: String = default.unwrap_or_default().into();
+            let d = DateTime::from_iso8601(&def, Some(&TimeZone::utc()));
+            calendar.select_day(&d.unwrap_or(DateTime::now_utc().unwrap()));
+        }
+
+        container.append(&calendar);
+        container
+    }
+
+    pub fn date_time_input(
+        &self,
+        name: &str,
+        options: Option<DateEntry>,
+        default: Option<Primitive>,
+    ) -> Box {
+        let container = Box::default();
+
+        container.set_css_classes(&["date_time_input_container"]);
+        container.set_widget_name(name);
+        container.set_orientation(Orientation::Vertical);
+        container.set_hexpand(false);
+        container.set_halign(Align::Start);
+        let time_input = self.time_input(name, options.clone(), default.clone());
+        let calendar = self
+            .date_input(name, options, default)
+            .first_child()
+            .unwrap()
+            .downcast::<Calendar>()
+            .unwrap();
+
+        container.append(&calendar);
+        container.append(&time_input);
+        container
+    }
+
+    pub fn time_input(
+        &self,
+        name: &str,
+        options: Option<DateEntry>,
+        default: Option<Primitive>,
+    ) -> Box {
+        let opts = options.unwrap_or_default();
+        let container = Box::default();
+
+        container.set_widget_name(name);
+        container.set_orientation(Orientation::Horizontal);
+        container.set_css_classes(&["time_input_container"]);
+
+        if opts.r#type == DateEntryType::DateTime {
+            container.set_homogeneous(true);
+        }
+
+        let default: TimeInput = default.unwrap_or_default().into();
+
+        let num_opts = NumericEntry {
+            max: IntOrFloat::Int(24),
+            value_type: NumericValueType::Int,
+            wrap: true,
+            orientation: OrientationType::Vertical,
+            ..Default::default()
+        };
+        let hour = self.numeric_input(
+            name,
+            Some(num_opts.clone()),
+            Some(Primitive::Int(default.0)),
+        );
+        let minute = self.numeric_input(
+            name,
+            Some(NumericEntry {
+                max: IntOrFloat::Int(60),
+                ..num_opts.clone()
+            }),
+            Some(Primitive::Int(default.1)),
+        );
+        let seconds = self.numeric_input(
+            name,
+            Some(NumericEntry {
+                max: IntOrFloat::Int(60),
+                ..num_opts
+            }),
+            Some(Primitive::Int(default.2)),
+        );
+
+        container.append(&hour);
+        container.append(&minute);
+        container.append(&seconds);
+        container
+    }
+
     pub fn numeric_input(
         &self,
         name: &str,
@@ -806,6 +915,7 @@ impl FormUtils {
         let number_input =
             SpinButton::new(Some(&adjustment), 0.001, Self::get_digits(&opts) as u32);
         number_input.set_width_chars(10);
+        number_input.set_orientation(opts.orientation.into());
         number_input.set_max_width_chars(10);
         number_input.set_widget_name(name);
         number_input.set_css_classes(&["numeric_input"]);

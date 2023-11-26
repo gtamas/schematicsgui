@@ -16,6 +16,7 @@ pub mod schematics_details;
 pub mod settings;
 pub mod settings_utils;
 pub mod string_list_item;
+pub mod templates;
 pub mod traits;
 pub mod value_extractor;
 pub mod value_loader;

@@ -4,8 +4,8 @@ use relm4::gtk::prelude::{
     TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
 };
 use relm4::gtk::{
-    Box, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range, SpinButton,
-    StringObject, Switch, TextView, ToggleButton, Widget,
+    Box, Calendar, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range,
+    SpinButton, StringObject, Switch, TextView, ToggleButton, Widget,
 };
 
 use crate::command_builder::{InputType, Param};
@@ -74,6 +74,24 @@ impl<'l> ValueExtractor<'l> {
                     value: self.get_slider_value(&container),
                     kind: InputType::Slider,
                 })
+            } else if kind.contains(&GString::from("time_input_container")) {
+                Some(Param {
+                    name: container.widget_name().to_string(),
+                    value: self.get_time_input_value(&container),
+                    kind: InputType::Time,
+                })
+            } else if kind.contains(&GString::from("date_time_input_container")) {
+                Some(Param {
+                    name: container.widget_name().to_string(),
+                    value: self.get_date_time_input_value(&container),
+                    kind: InputType::DateTime,
+                })
+            } else if kind.contains(&GString::from("date_input_container")) {
+                Some(Param {
+                    name: container.widget_name().to_string(),
+                    value: self.get_date_input_value(&container),
+                    kind: InputType::Date,
+                })
             } else if kind.contains(&GString::from("radio_group_container"))
                 || kind.contains(&GString::from("toggle_group_container"))
             {
@@ -85,8 +103,7 @@ impl<'l> ValueExtractor<'l> {
                         false => InputType::ToggleGroup,
                     },
                 })
-            } else if kind.contains(&GString::from("date_input_container"))
-                || kind.contains(&GString::from("file_input_container"))
+            } else if kind.contains(&GString::from("file_input_container"))
                 || kind.contains(&GString::from("dir_input_container"))
                 || kind.contains(&GString::from("color_input_container"))
             {
@@ -167,6 +184,54 @@ impl<'l> ValueExtractor<'l> {
             .downcast::<Range>()
             .unwrap();
         scale.value().to_string()
+    }
+
+    fn get_calendar(&self, container: &Box) -> Calendar {
+        container
+            .first_child()
+            .unwrap()
+            .downcast::<Calendar>()
+            .unwrap()
+    }
+
+    fn get_date_input_value(&self, container: &Box) -> String {
+        let calendar = self.get_calendar(container);
+
+        let date = FormUtils::format_date(String::from("%Y-%m-%d"), &calendar.date());
+        format!("{}", date)
+    }
+
+    fn get_date_time_input_value(&self, container: &Box) -> String {
+        let calendar = self.get_calendar(container);
+        let date = self.get_date_input_value(container);
+
+        let time_widget = calendar.next_sibling().unwrap().downcast::<Box>().unwrap();
+        let time = self.get_time_input_value(&time_widget);
+        format!("{} {}", date, time)
+    }
+
+    fn get_time_input_value(&self, container: &Box) -> String {
+        let hour = container
+            .first_child()
+            .unwrap()
+            .downcast::<SpinButton>()
+            .unwrap();
+        let minute = hour
+            .next_sibling()
+            .unwrap()
+            .downcast::<SpinButton>()
+            .unwrap();
+        let second = minute
+            .next_sibling()
+            .unwrap()
+            .downcast::<SpinButton>()
+            .unwrap();
+        format!(
+            "{:02}:{:02}:{:02}",
+            hour.value(),
+            minute.value(),
+            second.value()
+        )
     }
 
     fn get_toggle_button_value(&self) -> String {

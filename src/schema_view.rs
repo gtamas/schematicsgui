@@ -45,14 +45,14 @@ impl SimpleComponent for SchemaViewModel {
           #[watch]
           set_visible: !model.hidden,
           set_hscrollbar_policy: gtk::PolicyType::Never,
-          gtk::TextView {
-            #[watch]
-            set_visible: !model.hidden,
-            set_hexpand: true,
-            set_vexpand: true,
-            set_monospace: true,
-            set_buffer: Some(&model.json)
-          }
+            gtk::TextView {
+              #[watch]
+              set_visible: !model.hidden,
+              set_hexpand: true,
+              set_vexpand: true,
+              set_monospace: true,
+              set_buffer: Some(&model.json)
+            }
           }
         }
     }

@@ -11,19 +11,17 @@ use relm4::gtk::prelude::{
 use relm4::gtk::{Align, EntryBuffer, Inhibit, ResponseType, TextBuffer, Window};
 use relm4::RelmWidgetExt;
 use relm4::{gtk, Component, ComponentParts, ComponentSender};
+use std::any;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 
 async fn run_schematic(
     executor: String,
     command: String,
     cwd: String,
     params: Vec<Param>,
-) -> Output {
-    println!(
-        "executor: {} cwd: {}, command: {}, {:?}",
-        executor, cwd, command, params
-    );
+) -> Child {
     let mut cmd = Command::new(executor);
 
     cmd.current_dir(cwd);
@@ -34,13 +32,26 @@ async fn run_schematic(
         cmd.arg(format!("{}", param.value));
     }
 
-    let out = cmd.output().expect("Command failed to start");
-    out
+    let child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    child
+
+    // let out = cmd.output().expect("Command failed to start");
+    // out
 }
 
 #[derive(Debug)]
 pub enum CommandMsg {
-    Data(Output),
+    Data(Child),
+}
+
+struct X {
+    y: i32,
+    v: f64,
 }
 
 pub struct SchematicExecutorModel {
@@ -85,6 +96,29 @@ impl SchematicExecutorModel {
         let settings = self.settings.clone().unwrap();
         settings.google_runner || settings.mbh_runner
     }
+
+    fn set_output<T: std::io::Read + std::marker::Send + std::marker::Sync + 'static>(
+        &self,
+        sender: ComponentSender<Self>,
+        mut stream: Option<T>,
+        is_error: bool,
+    ) {
+        std::thread::spawn(move || {
+            let out = stream.as_mut().unwrap();
+            let out_reader = BufReader::new(out);
+            let out_lines = out_reader.lines();
+            for line in out_lines {
+                let str =
+                    String::from_utf8(strip_ansi_escapes::strip(&String::from(line.unwrap())))
+                        .unwrap();
+                if !is_error {
+                    sender.input(SchematicExecutorInput::SetOutput(str));
+                } else {
+                    sender.input(SchematicExecutorInput::SetErrorOutput(str));
+                }
+            }
+        });
+    }
 }
 
 impl_validation!(SchematicExecutorModel);
@@ -104,10 +138,15 @@ pub enum SchematicExecutorInput {
     AllowGoogleOptions(bool),
     SetCwd(String),
     CopyToClipboard,
+    SetOutput(String),
+    Done,
+    SetErrorOutput(String),
 }
 
 #[derive(Debug)]
-pub enum SchematicExecutorOutput {}
+pub enum SchematicExecutorOutput {
+    BackToUi,
+}
 
 #[relm4::component(pub)]
 impl Component for SchematicExecutorModel {
@@ -243,7 +282,21 @@ impl Component for SchematicExecutorModel {
               set_orientation: gtk::Orientation::Horizontal,
               set_halign: Align::End,
               set_valign: Align::Start,
-                gtk::Button {
+              gtk::Button {
+                  set_hexpand: false,
+                  set_vexpand: false,
+                  set_label: "Edit",
+                  set_css_classes: &["button", "action"],
+                  connect_clicked[sender] => move |_| {
+                    let _ = sender.output_sender().send(SchematicExecutorOutput::BackToUi);
+                  },
+                  set_tooltip_text: Some("Clear output and errors"),
+                  #[watch]
+                  set_visible: model.submitted && !model.executing,
+                  #[watch]
+                  set_sensitive: model.submitted && !model.executing
+              },
+              gtk::Button {
                   set_hexpand: false,
                   set_vexpand: false,
                   set_label: "Clear",
@@ -254,6 +307,8 @@ impl Component for SchematicExecutorModel {
                   set_tooltip_text: Some("Clear output and errors"),
                   #[watch]
                   set_visible: model.submitted && !model.executing,
+                  #[watch]
+                  set_sensitive: model.submitted && !model.executing
               },
               gtk::Button {
                 set_hexpand: false,
@@ -264,22 +319,23 @@ impl Component for SchematicExecutorModel {
                 connect_clicked[sender] => move |_| {
                   let _ = sender.input_sender().send(SchematicExecutorInput::Execute);
                 },
-
+                #[watch]
+                  set_sensitive: !model.executing
               },
-            },
-            gtk::Spinner {
-              set_height_request: 100,
-              set_width_request: 100,
-              set_halign: gtk::Align::Center,
-              set_spinning: true,
-              set_css_classes: &["task_loading"],
-              #[watch]
-              set_visible: model.submitted && model.executing
+              gtk::Spinner {
+                set_height_request: 25,
+                set_width_request: 25,
+                set_halign: gtk::Align::Center,
+                set_spinning: true,
+                set_css_classes: &["task_loading"],
+                #[watch]
+                set_visible: model.executing,
+              },
             },
             gtk::Box {
                set_orientation: gtk::Orientation::Vertical,
                #[watch]
-               set_visible: !model.executing && model.submitted,
+               set_visible: true,
               gtk::Label {
                set_hexpand: true,
                 set_vexpand: false,
@@ -293,7 +349,7 @@ impl Component for SchematicExecutorModel {
                   set_hexpand: true,
                   set_vexpand: true,
                   set_css_classes: &["task_output"],
-                  set_buffer: Some(&model.output_buf)
+                  set_buffer: Some(&model.output_buf),
                 }
               },
               gtk::Label {
@@ -345,19 +401,26 @@ impl Component for SchematicExecutorModel {
     fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
-        _sender: ComponentSender<Self>,
+        sender: ComponentSender<Self>,
         _: &Self::Root,
     ) {
         match message {
-            CommandMsg::Data(data) => {
-                self.executing = false;
-                let output_str =
-                    strip_ansi_escapes::strip(&String::from_utf8(data.stdout).unwrap());
-                let error_str = strip_ansi_escapes::strip(&String::from_utf8(data.stderr).unwrap());
-                self.output_buf
-                    .set_text(&String::from_utf8_lossy(&output_str));
-                self.error_buf
-                    .set_text(&String::from_utf8_lossy(&error_str));
+            CommandMsg::Data(mut child) => {
+                self.set_output::<ChildStdout>(sender.clone(), child.stdout.take(), false);
+                self.set_output::<ChildStderr>(sender.clone(), child.stderr.take(), true);
+
+                std::thread::spawn(move || {
+                    child.wait().unwrap();
+                    sender.input(SchematicExecutorInput::Done);
+                });
+
+                // let output_str =
+                //     strip_ansi_escapes::strip(&String::from_utf8(data.stdout).unwrap());
+                // let error_str = strip_ansi_escapes::strip(&String::from_utf8(data.stderr).unwrap());
+                // self.output_buf
+                //     .set_text(&String::from_utf8_lossy(&output_str));
+                // self.error_buf
+                //     .set_text(&String::from_utf8_lossy(&error_str));
             }
         }
     }
@@ -386,6 +449,13 @@ impl Component for SchematicExecutorModel {
             SchematicExecutorInput::Execute => {
                 let cwd = self.cwd_buf.text().to_string();
 
+                let mut c = X { y: 1, v: 2.0 };
+
+                let num: f64 = 1.0;
+
+                c.y = 2;
+                c.v = 2.1;
+
                 if !self.validate() {
                     return;
                 }
@@ -409,8 +479,6 @@ impl Component for SchematicExecutorModel {
                     ));
                 }
 
-                // println!("params: {:?} {} {}", params, self.has_dry_run(), self.use_dry_run);
-
                 let command = self.builder.get_command();
                 let executor = self.settings.as_ref().unwrap().runner_location.clone();
 
@@ -424,6 +492,15 @@ impl Component for SchematicExecutorModel {
             }
             SchematicExecutorInput::AllowGoogleOptions(allow) => {
                 self.use_dry_run = allow;
+            }
+            SchematicExecutorInput::SetOutput(str) => {
+                self.output_buf.insert_at_cursor(&format!("{}\n", str));
+            }
+            SchematicExecutorInput::SetErrorOutput(str) => {
+                self.error_buf.insert_at_cursor(&format!("{}\n", str));
+            }
+            SchematicExecutorInput::Done => {
+                self.executing = false;
             }
             SchematicExecutorInput::ClearOutput => {
                 self.output_buf.set_text("");

@@ -3,8 +3,8 @@ use relm4::gtk::{Box, Orientation, Widget};
 
 use crate::form_utils::FormUtils;
 use crate::schema_parsing::{
-    ChoiceEntry, ChoiceType, ColorEntry, ColorEntryType, DateEntry, FsEntry, MenuEntry, MenuType,
-    NumericEntry, NumericType, SchemaProp, TextEntry, XWidget, XWidgetType,
+    ChoiceEntry, ChoiceType, ColorEntry, ColorEntryType, DateEntry, DateEntryType, FsEntry,
+    MenuEntry, MenuType, NumericEntry, NumericType, SchemaProp, TextEntry, XWidget, XWidgetType,
 };
 
 pub struct XWidgetBuilder {
@@ -26,13 +26,17 @@ impl XWidgetBuilder {
 
     pub fn get_widget(&self) -> Widget {
         if let XWidgetType::Color(c) = &self.xwidget.options {
-            println!("{:?}", c);
             if c.r#type == ColorEntryType::Button {
                 return self.get_color_button(c.clone()).upcast();
             }
             return self.get_color_input(&self.field, c.clone()).upcast();
         } else if let XWidgetType::Date(c) = &self.xwidget.options {
-            return self.get_date_input(c.clone()).upcast();
+            if c.r#type == DateEntryType::Date {
+                return self.get_date_input(c.clone()).upcast();
+            } else if c.r#type == DateEntryType::Time {
+                return self.get_time_input(c.clone()).upcast();
+            }
+            return self.get_date_time_input(c.clone()).upcast();
         } else if let XWidgetType::File(c) = &self.xwidget.options {
             return self.get_file_input(c.clone()).upcast();
         } else if let XWidgetType::Dir(c) = &self.xwidget.options {
@@ -125,6 +129,18 @@ impl XWidgetBuilder {
     fn get_date_input(&self, options: DateEntry) -> Widget {
         self.utils
             .date_input(&self.field, Some(options), self.prop.default.clone())
+            .upcast()
+    }
+
+    fn get_time_input(&self, options: DateEntry) -> Widget {
+        self.utils
+            .time_input(&self.field, Some(options), self.prop.default.clone())
+            .upcast()
+    }
+
+    fn get_date_time_input(&self, options: DateEntry) -> Widget {
+        self.utils
+            .date_time_input(&self.field, Some(options), self.prop.default.clone())
             .upcast()
     }
 

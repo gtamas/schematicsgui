@@ -101,13 +101,40 @@ impl Default for FsEntry {
 pub struct DateEntry {
     #[serde_as(deserialize_as = "DefaultOnError")]
     pub format: String,
+    #[serde_as(deserialize_as = "DefaultOnError")]
+    pub r#type: DateEntryType,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TimeInput(pub i32, pub i32, pub i32);
+
+impl Default for TimeInput {
+    fn default() -> Self {
+        TimeInput(0, 0, 0)
+    }
 }
 
 impl Default for DateEntry {
     fn default() -> Self {
         DateEntry {
             format: String::default(),
+            r#type: DateEntryType::Date,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DateEntryType {
+    Date,
+    Time,
+    DateTime,
+}
+
+impl Default for DateEntryType {
+    fn default() -> Self {
+        DateEntryType::Date
     }
 }
 
@@ -654,6 +681,7 @@ pub enum Primitive {
     Float(f64),
     Bool(bool),
     StringVec(Vec<String>),
+    Time(TimeInput),
     Unknown(serde_json::Value),
 }
 
@@ -665,9 +693,29 @@ impl fmt::Display for Primitive {
             Primitive::Int(n) => n.to_string(),
             Primitive::Float(n) => n.to_string(),
             Primitive::StringVec(v) => v.join(","),
+            Primitive::Time(v) => format!("{}:{}:{}", v.0, v.1, v.2),
             Primitive::Unknown(v) => v.as_str().unwrap_or("").to_owned(),
         };
         write!(f, "{}", s)
+    }
+}
+
+impl Into<TimeInput> for Primitive {
+    fn into(self) -> TimeInput {
+        match self {
+            Primitive::Str(s) => {
+                let time: Vec<i32> = s
+                    .split(":")
+                    .map(|s| s.parse::<i32>().unwrap_or_default())
+                    .collect();
+
+                if time.len() != 3 {
+                    return TimeInput::default();
+                }
+                TimeInput(time[0], time[1], time[2])
+            }
+            _ => TimeInput::default(),
+        }
     }
 }
 

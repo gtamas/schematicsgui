@@ -16,6 +16,14 @@ impl StringListItem {
     }
 }
 
+impl Into<f32> for StringListItem {
+    fn into(self) -> f32 {
+        match self {
+            StringListItem { value, binding } => 2.0,
+        }
+    }
+}
+
 pub struct Widgets {
     label: gtk::Label,
 }
