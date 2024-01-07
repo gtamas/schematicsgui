@@ -7,8 +7,8 @@ use relm4::gtk::prelude::{
 use relm4::gtk::{
     traits::{
         BoxExt, ButtonExt, CheckButtonExt, ColorChooserExt, DialogExt, EditableExt, EntryExt,
-        FileChooserExt, OrientableExt, RangeExt, ScaleExt, TextBufferExt, TextViewExt,
-        ToggleButtonExt, WidgetExt, SelectionModelExt
+        FileChooserExt, OrientableExt, RangeExt, ScaleExt, SelectionModelExt, TextBufferExt,
+        TextViewExt, ToggleButtonExt, WidgetExt,
     },
     Align, Box, Button, Dialog, Entry, EntryBuffer, FileChooserAction, FileChooserDialog,
     FileFilter, Label, ResponseType, SpinButtonUpdatePolicy,
@@ -158,7 +158,7 @@ impl FormUtils {
                 if has_decimals {
                     return dstr.split(".").last().unwrap().len() as i32;
                 } else {
-                  return 0
+                    return 0;
                 }
             }
             options.clone().precision.into()
@@ -926,8 +926,11 @@ impl FormUtils {
     ) -> SpinButton {
         let opts = options.unwrap_or_default();
         let adjustment = Self::get_adjustment(opts.clone());
-        let number_input =
-            SpinButton::new(Some(&adjustment), 0.001, Self::get_digits(&opts, &default) as u32);
+        let number_input = SpinButton::new(
+            Some(&adjustment),
+            0.001,
+            Self::get_digits(&opts, &default) as u32,
+        );
         number_input.set_width_chars(10);
         number_input.set_orientation(opts.orientation.into());
         number_input.set_max_width_chars(10);
@@ -967,7 +970,7 @@ impl FormUtils {
 
         if default.is_some() {
             let d: Vec<String> = default.unwrap().into();
-             for item in d.iter() {
+            for item in d.iter() {
                 let index: usize = items.iter().position(|r| r == item).unwrap_or(0);
                 selection.select_item(index as u32, false);
             }

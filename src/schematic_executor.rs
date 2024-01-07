@@ -472,7 +472,6 @@ impl Component for SchematicExecutorModel {
             SchematicExecutorInput::CopyToClipboard => {
                 let clip = gtk::gdk::Display::default().unwrap().clipboard();
                 clip.set_text(&self.command_buf.text());
-                    
             }
             SchematicExecutorInput::AllowGoogleOptions(allow) => {
                 self.use_dry_run = allow;

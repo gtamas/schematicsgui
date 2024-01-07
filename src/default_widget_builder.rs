@@ -25,7 +25,10 @@ impl DefaultWidgetBuilder {
         let prompt = self.prop.x_prompt.as_ref();
 
         if self.prop.r#type == "string" || self.prop.r#type == "array" {
-            if self.prop.r#enum.is_some() || (self.prop.x_prompt.is_some() && self.prop.x_prompt.as_ref().unwrap().has_items()) {
+            if self.prop.r#enum.is_some()
+                || (self.prop.x_prompt.is_some()
+                    && self.prop.x_prompt.as_ref().unwrap().has_items())
+            {
                 if prompt.is_some() && prompt.unwrap().has_multiselect() {
                     return self.get_multiselect(MenuEntry::default()).upcast();
                 }
@@ -74,7 +77,7 @@ impl DefaultWidgetBuilder {
         let empty: Vec<String> = vec![];
         if self.prop.r#type == "string" && self.prop.r#enum.is_some() {
             return self.prop.r#enum.as_ref().unwrap().clone();
-        } else if (self.prop.r#type == "array" || self.prop.r#type == "string") 
+        } else if (self.prop.r#type == "array" || self.prop.r#type == "string")
             && self.prop.x_prompt.is_some()
             && self.prop.x_prompt.as_ref().unwrap().has_items()
         {
