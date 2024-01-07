@@ -137,20 +137,17 @@ impl ProfileBrowserModel {
                 let description = profile["meta"]["description"].as_str().unwrap_or("");
 
                 if description.len() > 0 {
-                    profile_name = format!("{} ({})", profile_name, description.clone().to_string())
+                    profile_name = format!("{} ({})", profile_name, description.to_string())
                 }
 
                 let profile = ProfileData::new(
                     profile_name.clone(),
-                    file.clone().to_string(),
+                    file.to_string(),
                     profile["data"].as_table().unwrap().clone(),
                 );
 
                 self.profiles.push(profile);
-                result.push(ProfileDataMenuItem::new(
-                    file.clone().to_string(),
-                    profile_name,
-                ))
+                result.push(ProfileDataMenuItem::new(file.to_string(), profile_name))
             }
         }
         self.profiles.sort_by_cached_key(|i| i.title.clone());
@@ -200,7 +197,7 @@ impl SimpleComponent for ProfileBrowserModel {
     }
 
     fn init(
-        init: Self::Init,
+        _init: Self::Init,
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {

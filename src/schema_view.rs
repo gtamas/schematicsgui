@@ -4,12 +4,15 @@ use relm4::gtk::prelude::{OrientableExt, TextBufferExt, TextViewExt, WidgetExt};
 use relm4::gtk::Orientation;
 use relm4::{gtk, ComponentParts, ComponentSender, SimpleComponent};
 use serde_json::Value;
+use sourceview5::prelude::ViewExt;
+use sourceview5::Buffer;
 
 use crate::schematics::Collection;
+use crate::traits::JsonBuffer;
 
 pub struct SchemaViewModel {
     hidden: bool,
-    json: gtk::TextBuffer,
+    json: Buffer,
     title: String,
 }
 
@@ -20,6 +23,8 @@ pub enum SchemaViewInput {
 
 #[derive(Debug)]
 pub enum SchemaViewOutput {}
+
+impl JsonBuffer for SchemaViewModel {}
 
 #[relm4::component(pub)]
 impl SimpleComponent for SchemaViewModel {
@@ -45,13 +50,17 @@ impl SimpleComponent for SchemaViewModel {
           #[watch]
           set_visible: !model.hidden,
           set_hscrollbar_policy: gtk::PolicyType::Never,
-            gtk::TextView {
-              #[watch]
-              set_visible: !model.hidden,
-              set_hexpand: true,
-              set_vexpand: true,
-              set_monospace: true,
-              set_buffer: Some(&model.json)
+            sourceview5::View {
+                  #[watch]
+                  set_visible: !model.hidden,
+                  set_editable: false,
+                  set_hexpand: true,
+                  set_vexpand: true,
+                  set_show_line_numbers: true,
+                  set_highlight_current_line: true,
+                  set_tab_width: 4,
+                  set_monospace: true,
+                  set_buffer: Some(&model.json)
             }
           }
         }
@@ -65,7 +74,7 @@ impl SimpleComponent for SchemaViewModel {
         let model = SchemaViewModel {
             hidden: true,
             title: String::from(""),
-            json: gtk::TextBuffer::default(),
+            json: Self::get_json_buffer(None),
         };
         let widgets = view_output!();
         ComponentParts { model, widgets }

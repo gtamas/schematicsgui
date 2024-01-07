@@ -34,6 +34,7 @@ pub enum InputType {
     ToggleGroup,
     DropDown,
     Combobox,
+    Multiselect,
     Slider,
     Numeric,
     Switch,
@@ -55,6 +56,7 @@ impl Default for Param {
 pub struct CommandBuilderOptions {
     escape_multiline_text: bool,
     quote_paths: bool,
+    configurable: Option<String>,
 }
 
 impl Default for CommandBuilderOptions {
@@ -62,6 +64,7 @@ impl Default for CommandBuilderOptions {
         CommandBuilderOptions {
             escape_multiline_text: false,
             quote_paths: false,
+            configurable: None,
         }
     }
 }
@@ -86,6 +89,10 @@ impl CommandBuilder {
 
     fn escape_path(&self, path: &str) -> String {
         format!("\"{}\"", path.replace(&['"'], "\""))
+    }
+
+    pub fn set_configurable(&mut self, value: String) {
+        self.options.configurable = Some(value);
     }
 
     pub fn set_params(&mut self, params: Vec<Param>) {
@@ -113,7 +120,19 @@ impl CommandBuilder {
     }
 
     pub fn to_params(&self) -> Vec<Param> {
-        self.params.clone()
+        self.params
+            .clone()
+            .iter()
+            .filter(|m| {
+                self.options.configurable.is_none()
+                    || (self.options.configurable.clone().unwrap() == m.name && m.value == "true")
+            })
+            .map(|m| Param {
+                name: m.name.clone(),
+                value: m.value.clone(),
+                kind: m.kind.clone(),
+            })
+            .collect::<Vec<Param>>()
     }
 
     pub fn to_toml(&self) -> String {
@@ -127,7 +146,7 @@ impl CommandBuilder {
 
     pub fn to_string(&self, separator: Option<String>) -> String {
         let separator = separator.unwrap_or(String::from(" "));
-        self.params
+        self.to_params()
             .clone()
             .iter()
             .map(|m| {
@@ -138,6 +157,11 @@ impl CommandBuilder {
                         && (m.kind == InputType::File || m.kind == InputType::Dir)
                     {
                         self.escape_path(&m.value)
+                    } else if self.options.configurable.is_some()
+                        && self.options.configurable.clone().unwrap() == m.name
+                        && m.value == "true"
+                    {
+                        String::default()
                     } else {
                         m.value.clone()
                     }

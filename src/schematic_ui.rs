@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::command_builder::{CommandBuilder, Param};
+use crate::config_editor_dialog::{ConfigEditorDialogInput, ConfigEditorDialogModel};
 use crate::default_widget_builder::DefaultWidgetBuilder;
 use crate::form_utils::FormUtils;
 use crate::impl_validation;
@@ -14,10 +15,10 @@ use crate::profile_browser::{
 use crate::save_dialog::{
     ProfileData, SaveDialogInput, SaveDialogInputParams, SaveDialogModel, SaveDialogOutput,
 };
-use crate::schema_parsing::SchemaProp;
+use crate::schema_parsing::Primitive;
+use crate::schema_parsing::{Schema, SchemaProp, StringOrPrompt};
 use crate::schematics::Collection;
 use crate::settings_utils::SettingsUtils;
-use crate::templates::TimeInput;
 use crate::traits::Validator;
 use crate::traits::WidgetUtils;
 use crate::value_extractor::ValueExtractor;
@@ -31,7 +32,10 @@ pub struct SchematicUiModel {
     loader: bool,
     json: serde_json::Value,
     schematic: String,
+    #[no_eq]
+    configurable: Option<ConfigurableSchematicOptions>,
     package_name: String,
+    cwd: Option<String>,
     file: Option<String>,
     error: bool,
     success: bool,
@@ -41,6 +45,8 @@ pub struct SchematicUiModel {
     #[no_eq]
     save: Controller<SaveDialogModel>,
     #[no_eq]
+    config: Controller<ConfigEditorDialogModel>,
+    #[no_eq]
     browser: Controller<ProfileBrowserModel>,
 }
 
@@ -48,11 +54,38 @@ impl WidgetUtils for SchematicUiModel {}
 impl_validation!(SchematicUiModel);
 
 impl SchematicUiModel {
-    pub fn has_profiles(&self) -> bool {
+    fn reset_view(&mut self) -> () {
+        self.set_configurable(None);
+        self.set_cwd(None);
+        self.set_file(None);
+        self.set_success(false);
+        self.hidden = false;
+        self.loader = false;
+        self.browser.state().get_mut().model.clear();
+    }
+
+    fn has_profiles(&self) -> bool {
         let path = SettingsUtils::get_config_dir()
             .join(self.get_package_name())
             .join(self.get_schematic());
         path.is_dir() && path.exists() && fs::read_dir(&path).unwrap().count() > 0
+    }
+
+    fn get_config_path(&self) -> PathBuf {
+        PathBuf::new()
+            .join(self.cwd.as_ref().unwrap_or(&String::default()))
+            .join(
+                self.configurable
+                    .as_ref()
+                    .unwrap_or(&ConfigurableSchematicOptions::default())
+                    .config_file
+                    .clone(),
+            )
+    }
+
+    fn config_exists(&self) -> bool {
+        let path = self.get_config_path();
+        path.exists() && path.is_file()
     }
 
     fn get_loaded_profile_file(&self) -> String {
@@ -112,8 +145,13 @@ impl SchematicUiModel {
             let extractor = ValueExtractor::new(widget);
             let param = extractor.get_name_value();
 
-            if (param.is_some()) {
+            if param.is_some() {
                 let p = param.unwrap();
+                let c = self.configurable.clone().unwrap_or_default();
+
+                if p.name == c.config_option && p.value == "true" {
+                    command.set_configurable(p.name.clone());
+                }
 
                 if p.name.len() > 0 {
                     command.add(p);
@@ -127,6 +165,19 @@ impl SchematicUiModel {
             }
         }
         command
+    }
+
+    fn get_label_text(&self, prop: &SchemaProp) -> String {
+        if prop.x_prompt.is_some() {
+            let text = match prop.x_prompt.as_ref().unwrap() {
+                StringOrPrompt::Str(s) => String::from(s),
+                StringOrPrompt::Prompt(p) => String::from(&p.message),
+            };
+
+            return text;
+        }
+
+        return String::from(prop.description.as_ref().unwrap_or(&String::default()));
     }
 
     fn build_form(&self, parent: &gtk::Frame, json: &serde_json::Value) -> Option<gtk::Box> {
@@ -145,7 +196,7 @@ impl SchematicUiModel {
                     let prop_value: serde_json::Value = props.get(key).unwrap().clone();
                     match serde_json::from_value::<SchemaProp>(prop_value) {
                         Ok(prop) => {
-                            let label_text = prop.description.clone().unwrap_or(String::default());
+                            let label_text = self.get_label_text(&prop);
                             form.append(&utils.label(&label_text, key, None, None));
                             if prop.x_widget.is_some() {
                                 let builder = XWidgetBuilder::new(&prop, key.clone());
@@ -195,15 +246,42 @@ pub struct SchematicUiInputParams {
     pub package_name: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConfigurableSchematicOptions {
+    pub config_option: String,
+    pub config_file: String,
+}
+
+impl ConfigurableSchematicOptions {
+    pub fn new(config_option: String, config_file: String) -> Self {
+        ConfigurableSchematicOptions {
+            config_option,
+            config_file,
+        }
+    }
+}
+
+impl Default for ConfigurableSchematicOptions {
+    fn default() -> Self {
+        ConfigurableSchematicOptions {
+            config_option: String::default(),
+            config_file: String::default(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum SchematicUiInput {
     Show(SchematicUiInputParams),
     Submit,
     ShowSave(bool),
+    ShowConfig,
     ShowBrowser,
     HideBrowser,
     Selected(usize, String),
     Saved(String),
+    ConfigDone,
+    CwdChanged(String),
 }
 
 #[derive(Debug)]
@@ -282,10 +360,19 @@ impl Component for SchematicUiModel {
                 set_orientation: gtk::Orientation::Horizontal,
                 set_halign: Align::End,
                 set_valign: Align::Start,
+                append: cfg = &gtk::Button {
+                  set_label: "Config editor",
+                  #[watch]
+                  set_visible: model.config_exists(),
+                  connect_clicked[sender] => move |_| {
+                    sender.input(SchematicUiInput::ShowConfig);
+                  },
+                  set_css_classes: &["action"]
+                },
                 append: submit = &gtk::Button {
                   set_label: "Submit",
                   connect_clicked[sender] => move |_| {
-                  sender.input(SchematicUiInput::Submit);
+                    sender.input(SchematicUiInput::Submit);
                   },
                   set_css_classes: &["action"]
                 },
@@ -329,7 +416,7 @@ impl Component for SchematicUiModel {
                 }
               }
             }
-          
+
 
           }
 
@@ -337,7 +424,7 @@ impl Component for SchematicUiModel {
     }
 
     fn init(
-        init: Self::Init,
+        _init: Self::Init,
         root: &Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
@@ -346,6 +433,13 @@ impl Component for SchematicUiModel {
             .launch(true)
             .forward(sender.input_sender(), |msg| match msg {
                 SaveDialogOutput::Apply(file) => SchematicUiInput::Saved(file),
+            });
+
+        let config = ConfigEditorDialogModel::builder()
+            .transient_for(root)
+            .launch(true)
+            .forward(sender.input_sender(), |msg| match msg {
+                _ => SchematicUiInput::Submit,
             });
 
         let browser =
@@ -363,13 +457,16 @@ impl Component for SchematicUiModel {
             tracker: 0,
             file: None,
             profiles: vec![],
+            configurable: None,
             loader: false,
+            cwd: None,
             schematic: String::default(),
             package_name: String::default(),
             error: false,
             success: false,
             message: String::default(),
             save,
+            config,
             browser,
         };
 
@@ -382,24 +479,36 @@ impl Component for SchematicUiModel {
         widgets: &mut Self::Widgets,
         message: Self::Input,
         sender: ComponentSender<Self>,
-        root: &Self::Root,
+        _root: &Self::Root,
     ) {
         self.reset();
 
         match message {
             SchematicUiInput::Show(params) => {
-                let json = serde_json::from_str(&Collection::read_str(
+                let json: serde_json::Value = serde_json::from_str(&Collection::read_str(
                     params.schema_path.to_str().unwrap(),
                 ))
                 .unwrap();
+                let schema = serde_json::from_value::<Schema>(json.clone()).unwrap();
+
+                self.reset_view();
+
+                if schema.configurable.is_some() {
+                    let config_option = schema.configurable.clone().unwrap_or(String::default());
+                    let path_prop = schema.get_property("path").unwrap_or(SchemaProp::default());
+                    let configurable = ConfigurableSchematicOptions::new(
+                        config_option,
+                        path_prop
+                            .default
+                            .unwrap_or(Primitive::Str(String::from("")))
+                            .into(),
+                    );
+                    self.set_configurable(Some(configurable));
+                }
+
                 self.set_json(json);
                 self.set_schematic(params.schematic);
                 self.set_package_name(params.package_name);
-                self.set_file(None);
-                self.set_success(false);
-                self.hidden = false;
-                self.loader = false;
-                self.browser.state().get_mut().model.clear();
             }
             SchematicUiInput::ShowSave(save_as) => {
                 let command = self.extract_values(widgets);
@@ -439,6 +548,18 @@ impl Component for SchematicUiModel {
             }
             SchematicUiInput::HideBrowser => {
                 self.loader = false;
+            }
+            SchematicUiInput::ConfigDone => {}
+            SchematicUiInput::ShowConfig => {
+                self.config
+                    .sender()
+                    .send(ConfigEditorDialogInput::Show(
+                        self.get_config_path().to_str().unwrap().to_string(),
+                    ))
+                    .unwrap();
+            }
+            SchematicUiInput::CwdChanged(path) => {
+                self.set_cwd(path.into());
             }
             SchematicUiInput::Submit => {
                 let command = self.extract_values(widgets);

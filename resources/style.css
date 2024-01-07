@@ -185,7 +185,8 @@ scale trough highlight {
 /* Color chooser */
 
 .colorchooser .text-button,
-.settings_dialog .text-button {
+.settings_dialog .text-button,
+.config_editor_dialog .text-button {
   border-radius: 0;
   border: solid 1px #dedede;
   min-width: 75px;
@@ -195,7 +196,8 @@ scale trough highlight {
 }
 
 .colorchooser .text-button:hover,
-.settings_dialog .text-button:hover {
+.settings_dialog .text-button:hover,
+.config_editor_dialog .text-button:hover {
   color: white;
   background: orange;
 }

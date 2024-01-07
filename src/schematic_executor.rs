@@ -11,7 +11,6 @@ use relm4::gtk::prelude::{
 use relm4::gtk::{Align, EntryBuffer, Inhibit, ResponseType, TextBuffer, Window};
 use relm4::RelmWidgetExt;
 use relm4::{gtk, Component, ComponentParts, ComponentSender};
-use std::any;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
@@ -39,19 +38,11 @@ async fn run_schematic(
         .unwrap();
 
     child
-
-    // let out = cmd.output().expect("Command failed to start");
-    // out
 }
 
 #[derive(Debug)]
 pub enum CommandMsg {
     Data(Child),
-}
-
-struct X {
-    y: i32,
-    v: f64,
 }
 
 pub struct SchematicExecutorModel {
@@ -71,6 +62,15 @@ pub struct SchematicExecutorModel {
 }
 
 impl SchematicExecutorModel {
+    fn reset_view(&mut self) -> () {
+        self.executing = false;
+        self.submitted = false;
+        self.output_buf.set_text(&String::default());
+        self.error_buf.set_text(&String::default());
+        self.clear_error();
+        self.hidden = false;
+    }
+
     fn validate(&mut self) -> bool {
         let cwd = self.cwd_buf.text().to_string();
         let path = Path::new(&cwd);
@@ -146,6 +146,7 @@ pub enum SchematicExecutorInput {
 #[derive(Debug)]
 pub enum SchematicExecutorOutput {
     BackToUi,
+    CwdChanged(String),
 }
 
 #[relm4::component(pub)]
@@ -357,7 +358,7 @@ impl Component for SchematicExecutorModel {
                 set_vexpand: false,
                 set_css_classes: &["label"],
                 set_halign: gtk::Align::Start,
-                set_label: "Errors"
+                set_label: "Errors / Warnings"
               },
               gtk::ScrolledWindow {
                 set_hscrollbar_policy: gtk::PolicyType::Never,
@@ -413,48 +414,30 @@ impl Component for SchematicExecutorModel {
                     child.wait().unwrap();
                     sender.input(SchematicExecutorInput::Done);
                 });
-
-                // let output_str =
-                //     strip_ansi_escapes::strip(&String::from_utf8(data.stdout).unwrap());
-                // let error_str = strip_ansi_escapes::strip(&String::from_utf8(data.stderr).unwrap());
-                // self.output_buf
-                //     .set_text(&String::from_utf8_lossy(&output_str));
-                // self.error_buf
-                //     .set_text(&String::from_utf8_lossy(&error_str));
             }
         }
     }
 
-    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, root: &Self::Root) {
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, _root: &Self::Root) {
         match message {
             SchematicExecutorInput::Show(data) => {
-                self.executing = false;
-                self.submitted = false;
+                self.reset_view();
 
                 self.settings = Some(data.settings);
                 self.builder.set_params(data.params);
                 self.builder.set_command(data.schematic);
                 self.builder
                     .set_executable(self.settings.clone().unwrap().runner_location);
-                self.hidden = false;
+
                 self.command_buf.set_text(&format!(
                     "{} {} {}",
                     self.builder.get_executable(),
                     self.builder.get_command(),
                     self.builder.to_string(None)
                 ));
-                self.output_buf.set_text(&String::default());
-                self.error_buf.set_text(&String::default());
             }
             SchematicExecutorInput::Execute => {
                 let cwd = self.cwd_buf.text().to_string();
-
-                let mut c = X { y: 1, v: 2.0 };
-
-                let num: f64 = 1.0;
-
-                c.y = 2;
-                c.v = 2.1;
 
                 if !self.validate() {
                     return;
@@ -489,6 +472,7 @@ impl Component for SchematicExecutorModel {
             SchematicExecutorInput::CopyToClipboard => {
                 let clip = gtk::gdk::Display::default().unwrap().clipboard();
                 clip.set_text(&self.command_buf.text());
+                    
             }
             SchematicExecutorInput::AllowGoogleOptions(allow) => {
                 self.use_dry_run = allow;
@@ -507,7 +491,10 @@ impl Component for SchematicExecutorModel {
                 self.error_buf.set_text("");
             }
             SchematicExecutorInput::SetCwd(path) => {
-                self.cwd_buf.set_text(path);
+                self.cwd_buf.set_text(path.clone());
+                let _ = sender
+                    .output_sender()
+                    .send(SchematicExecutorOutput::CwdChanged(path));
             }
         }
     }

@@ -8,24 +8,26 @@ use relm4::gtk::{
     traits::{
         BoxExt, ButtonExt, CheckButtonExt, ColorChooserExt, DialogExt, EditableExt, EntryExt,
         FileChooserExt, OrientableExt, RangeExt, ScaleExt, TextBufferExt, TextViewExt,
-        ToggleButtonExt, WidgetExt,
+        ToggleButtonExt, WidgetExt, SelectionModelExt
     },
     Align, Box, Button, Dialog, Entry, EntryBuffer, FileChooserAction, FileChooserDialog,
     FileFilter, Label, ResponseType, SpinButtonUpdatePolicy,
 };
 use relm4::gtk::{
     Adjustment, ApplicationWindow, Calendar, CheckButton, ColorButton, ColorChooserDialog,
-    ComboBoxText, DropDown, EntryIconPosition, Justification, LinkButton, Orientation, Scale,
-    SpinButton, Switch, TextBuffer, TextView, ToggleButton, Widget, Window, WrapMode,
+    ComboBoxText, DropDown, EntryIconPosition, Justification, LinkButton, ListView, MultiSelection,
+    Orientation, Scale, SpinButton, Switch, TextBuffer, TextView, ToggleButton, Window, WrapMode,
 };
 
 use relm4::gtk::gio::File;
+use relm4::typed_list_view::TypedListView;
 
 use crate::schema_parsing::{
     ChoiceEntry, ColorEntry, ColorEntryFormat, CurrentValuePosType, DateEntry, DateEntryType,
     FsEntry, IconPositionType, IntOrFloat, JustificationType, MenuEntry, NumericEntry,
     NumericValueType, OrientationType, Primitive, TextEntry, TimeInput,
 };
+use crate::string_list_item::StringListItem;
 use crate::traits::WidgetUtils;
 
 #[derive(Debug)]
@@ -148,8 +150,17 @@ impl FormUtils {
         d
     }
 
-    fn get_digits(options: &NumericEntry) -> i32 {
+    fn get_digits(options: &NumericEntry, default: &Option<Primitive>) -> i32 {
         if options.value_type == NumericValueType::Float {
+            if default.is_some() {
+                let dstr: String = default.clone().unwrap().into();
+                let has_decimals = dstr.contains(".");
+                if has_decimals {
+                    return dstr.split(".").last().unwrap().len() as i32;
+                } else {
+                  return 0
+                }
+            }
             options.clone().precision.into()
         } else {
             0
@@ -199,7 +210,7 @@ impl FormUtils {
         let opts = options.unwrap_or_default();
         let adjustment = Self::get_adjustment(opts.clone());
 
-        let precision = Self::get_digits(&opts);
+        let precision = Self::get_digits(&opts, &default);
         let min_label = self.label(&opts.min.to_string(), "min", None, None);
         let max: f64 = opts.max.into();
         let max_label = self.label(
@@ -348,7 +359,6 @@ impl FormUtils {
         default: Option<Primitive>,
     ) -> Box {
         let opts = options.unwrap_or_default();
-        let mut default_date: Option<DateTime> = None;
 
         let entry = Entry::new();
         let buffer = EntryBuffer::default();
@@ -356,7 +366,7 @@ impl FormUtils {
         let button = self.action_button("date", Some("work-week"));
 
         if default.is_some() {
-            default_date = Some(default.clone().unwrap().into());
+            let default_date: Option<DateTime> = Some(default.clone().unwrap().into());
             buffer.set_text(Self::format_date(
                 opts.format.clone(),
                 &default_date.as_ref().unwrap(),
@@ -446,12 +456,11 @@ impl FormUtils {
         let buffer = EntryBuffer::default();
         let buffer_clone = buffer.clone();
         let button = self.action_button("color", Some("color-picker"));
-        let mut rgba: Option<RGBA> = None;
         let color: String;
 
         if default.is_some() {
             color = default.clone().unwrap().into();
-            rgba = Some(Self::parse_color(color));
+            let rgba: Option<RGBA> = Some(Self::parse_color(color));
             buffer.set_text(Self::format_color_str(opts.format.clone(), &rgba.unwrap()));
         }
 
@@ -780,7 +789,12 @@ impl FormUtils {
         button
     }
 
-    pub fn switch(&self, name: &str, default: Option<Primitive>) -> Switch {
+    pub fn switch(
+        &self,
+        name: &str,
+        _options: Option<ChoiceEntry>,
+        default: Option<Primitive>,
+    ) -> Switch {
         let switch = Switch::new();
         switch.set_widget_name(name);
         switch.set_css_classes(&["switch"]);
@@ -798,7 +812,7 @@ impl FormUtils {
     pub fn date_input(
         &self,
         name: &str,
-        options: Option<DateEntry>,
+        _options: Option<DateEntry>,
         default: Option<Primitive>,
     ) -> Box {
         let container = Box::default();
@@ -913,7 +927,7 @@ impl FormUtils {
         let opts = options.unwrap_or_default();
         let adjustment = Self::get_adjustment(opts.clone());
         let number_input =
-            SpinButton::new(Some(&adjustment), 0.001, Self::get_digits(&opts) as u32);
+            SpinButton::new(Some(&adjustment), 0.001, Self::get_digits(&opts, &default) as u32);
         number_input.set_width_chars(10);
         number_input.set_orientation(opts.orientation.into());
         number_input.set_max_width_chars(10);
@@ -930,6 +944,36 @@ impl FormUtils {
         }
 
         number_input
+    }
+
+    pub fn multiselect_input(
+        &self,
+        name: &str,
+        items: &Vec<String>,
+        options: Option<MenuEntry>,
+        default: Option<Primitive>,
+    ) -> ListView {
+        let _opts = options.unwrap_or_default();
+        let mut list: TypedListView<StringListItem, MultiSelection> = TypedListView::with_sorting();
+        list.view.set_widget_name(name);
+        list.view.set_css_classes(&["dropdown"]);
+        list.view.enables_rubberband();
+
+        for item in items.iter() {
+            list.append(StringListItem::new(item.to_string()));
+        }
+
+        let selection = list.selection_model;
+
+        if default.is_some() {
+            let d: Vec<String> = default.unwrap().into();
+             for item in d.iter() {
+                let index: usize = items.iter().position(|r| r == item).unwrap_or(0);
+                selection.select_item(index as u32, false);
+            }
+        }
+
+        list.view
     }
 
     pub fn dropdown(
@@ -964,12 +1008,13 @@ impl FormUtils {
         &self,
         name: &str,
         items: &Vec<String>,
-        options: Option<MenuEntry>,
+        // TODO: Implement searchable and orientation options if it makes sense.
+        _options: Option<MenuEntry>,
         default: Option<Primitive>,
     ) -> ComboBoxText {
         let combo = ComboBoxText::with_entry();
 
-        for (i, el) in items.iter().enumerate() {
+        for (_, el) in items.iter().enumerate() {
             combo.append_text(&el);
         }
 

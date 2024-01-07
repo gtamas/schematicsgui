@@ -66,6 +66,8 @@ impl XWidgetBuilder {
                 return self.get_radio_group(c.clone()).upcast();
             } else if c.r#type == MenuType::Toggle {
                 return self.get_toggle_group(c.clone()).upcast();
+            } else if c.r#type == MenuType::Multiselect {
+                return self.get_multiselect(c.clone()).upcast();
             }
             return self.get_menu(c.clone()).upcast();
         } else {
@@ -116,7 +118,7 @@ impl XWidgetBuilder {
 
     fn get_switch_input(&self, options: ChoiceEntry) -> Widget {
         self.utils
-            .switch(&self.field, self.prop.default.clone())
+            .switch(&self.field, Some(options), self.prop.default.clone())
             .upcast()
     }
 
@@ -153,6 +155,17 @@ impl XWidgetBuilder {
     fn get_menu(&self, options: MenuEntry) -> Widget {
         self.utils
             .dropdown(
+                &self.field,
+                &self.get_items(),
+                Some(options),
+                self.prop.default.clone(),
+            )
+            .upcast()
+    }
+
+    fn get_multiselect(&self, options: MenuEntry) -> Widget {
+        self.utils
+            .multiselect_input(
                 &self.field,
                 &self.get_items(),
                 Some(options),

@@ -1088,6 +1088,7 @@ dependencies = [
  "serde-aux",
  "serde_json",
  "serde_with",
+ "sourceview5",
  "strip-ansi-escapes",
  "toml 0.7.8",
  "tracker 0.1.2",
@@ -1199,6 +1200,42 @@ name = "smallvec"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "942b4a808e05215192e39f4ab80813e599068285906cc91aa64f923db842bd5a"
+
+[[package]]
+name = "sourceview5"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee960607b1f7fda934dce68e76e925989ebe186ac04d6ab5ea9ce93e13835c03"
+dependencies = [
+ "bitflags",
+ "futures-channel",
+ "futures-core",
+ "gdk-pixbuf",
+ "gdk4",
+ "gio",
+ "glib",
+ "gtk4",
+ "libc",
+ "pango",
+ "sourceview5-sys",
+]
+
+[[package]]
+name = "sourceview5-sys"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7a23462cd3d696199b56317d35e69b240d655b8c70c12bd8f443b672313776c"
+dependencies = [
+ "gdk-pixbuf-sys",
+ "gdk4-sys",
+ "gio-sys",
+ "glib-sys",
+ "gobject-sys",
+ "gtk4-sys",
+ "libc",
+ "pango-sys",
+ "system-deps",
+]
 
 [[package]]
 name = "spin"

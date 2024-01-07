@@ -22,8 +22,13 @@ impl DefaultWidgetBuilder {
     }
 
     pub fn get_widget(&self) -> Widget {
-        if self.prop.r#type == "string" {
-            if self.prop.r#enum.is_some() {
+        let prompt = self.prop.x_prompt.as_ref();
+
+        if self.prop.r#type == "string" || self.prop.r#type == "array" {
+            if self.prop.r#enum.is_some() || (self.prop.x_prompt.is_some() && self.prop.x_prompt.as_ref().unwrap().has_items()) {
+                if prompt.is_some() && prompt.unwrap().has_multiselect() {
+                    return self.get_multiselect(MenuEntry::default()).upcast();
+                }
                 return self.get_menu(MenuEntry::default()).upcast();
             } else if self.prop.format.is_some() {
                 let format = self.prop.format.as_deref().unwrap();
@@ -54,12 +59,26 @@ impl DefaultWidgetBuilder {
             .upcast()
     }
 
+    fn get_multiselect(&self, options: MenuEntry) -> Widget {
+        self.utils
+            .multiselect_input(
+                &self.field,
+                &self.get_items(),
+                Some(options),
+                self.prop.default.clone(),
+            )
+            .upcast()
+    }
+
     fn get_items(&self) -> Vec<String> {
         let empty: Vec<String> = vec![];
         if self.prop.r#type == "string" && self.prop.r#enum.is_some() {
             return self.prop.r#enum.as_ref().unwrap().clone();
-        } else if self.prop.r#type == "array" && self.prop.items.is_some() {
-            return self.prop.items.as_ref().unwrap().r#enum.clone();
+        } else if (self.prop.r#type == "array" || self.prop.r#type == "string") 
+            && self.prop.x_prompt.is_some()
+            && self.prop.x_prompt.as_ref().unwrap().has_items()
+        {
+            return self.prop.x_prompt.as_ref().unwrap().get_items();
         }
 
         empty
@@ -79,7 +98,7 @@ impl DefaultWidgetBuilder {
 
     fn get_switch_input(&self, options: ChoiceEntry) -> Widget {
         self.utils
-            .switch(&self.field, self.prop.default.clone())
+            .switch(&self.field, Some(options), self.prop.default.clone())
             .upcast()
     }
 

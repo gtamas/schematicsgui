@@ -7,7 +7,6 @@ use relm4::{
 };
 
 use crate::command_builder::Param;
-use crate::form_utils::FormUtils;
 use crate::package_info::{
     PackageInfoInput, PackageInfoModel, PackageInfoOutput, PartialPackageJsonData,
 };
@@ -35,28 +34,20 @@ pub struct SchematicsDetailsModel {
 }
 
 impl SchematicsDetailsModel {
-    fn show_package(&mut self) {
+    pub fn show_package(&mut self) {
         self.tab = 0;
     }
 
-    fn show_schema(&mut self) {
+    pub fn show_schema(&mut self) {
         self.tab = 1;
     }
 
-    fn show_ui(&mut self) {
+    pub fn show_ui(&mut self) {
         self.tab = 2;
     }
 
-    fn show_shell(&mut self) {
+    pub fn show_shell(&mut self) {
         self.tab = 3;
-    }
-
-    fn build_package(&self) -> gtk::Revealer {
-        gtk::Revealer::builder()
-            .child(self.info.widget())
-            .transition_type(gtk::RevealerTransitionType::SlideLeft)
-            .reveal_child(false)
-            .build()
     }
 }
 
@@ -67,6 +58,7 @@ pub enum SchematicsDetailsInput {
     ShowExecutor(Vec<Param>),
     SetPackage(PartialPackageJsonData),
     BacktToUi,
+    CwdChanged(String),
 }
 
 #[derive(Debug)]
@@ -110,12 +102,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                 PackageInfoOutput::PackageData(pkg) => SchematicsDetailsInput::SetPackage(pkg),
             });
 
-        let schema_view = SchemaViewModel::builder().launch(true).forward(
-            sender.input_sender(),
-            |msg| match msg {
-                _ => SchematicsDetailsInput::Show(None),
-            },
-        );
+        let schema_view = SchemaViewModel::builder().launch(true).detach();
 
         let schematic_ui = SchematicUiModel::builder().launch(true).forward(
             sender.input_sender(),
@@ -129,6 +116,9 @@ impl SimpleComponent for SchematicsDetailsModel {
                 .launch(true)
                 .forward(sender.input_sender(), |msg| match msg {
                     SchematicExecutorOutput::BackToUi => SchematicsDetailsInput::BacktToUi,
+                    SchematicExecutorOutput::CwdChanged(path) => {
+                        SchematicsDetailsInput::CwdChanged(path)
+                    }
                 });
 
         let model = SchematicsDetailsModel {
@@ -189,6 +179,12 @@ impl SimpleComponent for SchematicsDetailsModel {
             }
             SchematicsDetailsInput::BacktToUi => {
                 self.show_ui();
+            }
+            SchematicsDetailsInput::CwdChanged(path) => {
+                self.ui
+                    .sender()
+                    .send(SchematicUiInput::CwdChanged(path))
+                    .unwrap();
             }
             SchematicsDetailsInput::SetPackage(data) => {
                 self.package = Some(data);

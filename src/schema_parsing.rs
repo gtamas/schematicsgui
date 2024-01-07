@@ -3,8 +3,35 @@ use relm4::gtk::{
     InputHints, InputPurpose, Justification, Orientation, PositionType,
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Map;
 use serde_with::{serde_as, DefaultOnError};
 use std::fmt;
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Schema {
+    #[serde(alias = "$schema")]
+    pub schema: String,
+    #[serde(alias = "$id")]
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub configurable: Option<String>,
+    pub r#type: String,
+    pub properties: Map<String, serde_json::Value>,
+}
+
+impl Schema {
+    pub fn get_property(&self, key: &str) -> Option<SchemaProp> {
+        let v = self.properties.get(key);
+        if v.is_some() {
+            let prop: SchemaProp = serde_json::from_value(v.unwrap().clone()).unwrap();
+            return Some(prop);
+        } else {
+            return None;
+        }
+    }
+}
 
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -20,6 +47,22 @@ pub struct SchemaProp {
     pub x_prompt: Option<StringOrPrompt>,
     #[serde(alias = "x-widget")]
     pub x_widget: Option<XWidget>,
+}
+
+impl Default for SchemaProp {
+    fn default() -> Self {
+        SchemaProp {
+            r#type: String::default(),
+            description: None,
+            default: None,
+            alias: None,
+            r#enum: None,
+            items: None,
+            format: None,
+            x_prompt: None,
+            x_widget: None,
+        }
+    }
 }
 
 #[serde_as]
@@ -253,6 +296,7 @@ impl Default for MenuEntry {
 pub enum MenuType {
     DropDown,
     Combobox,
+    Multiselect,
     Radio,
     Toggle,
 }
@@ -673,6 +717,16 @@ pub struct XPrompt {
     pub items: Option<VecOrString>,
 }
 
+impl XPrompt {
+    pub fn has_multiselect(&self) -> bool {
+        self.multiselect.is_some()
+    }
+
+    pub fn has_items(&self) -> bool {
+        self.items.is_some()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Primitive {
@@ -723,6 +777,8 @@ impl Into<String> for Primitive {
     fn into(self) -> String {
         match self {
             Primitive::Str(s) => s,
+            Primitive::Float(f) => f.to_string(),
+            Primitive::Int(i) => i.to_string(),
             _ => String::default(),
         }
     }
@@ -777,6 +833,15 @@ impl Into<DateTime> for Primitive {
     }
 }
 
+impl Into<Vec<String>> for Primitive {
+    fn into(self) -> Vec<String> {
+        match self {
+            Primitive::StringVec(i) => i,
+            _ => vec![],
+        }
+    }
+}
+
 impl Default for Primitive {
     fn default() -> Self {
         Primitive::Str(String::default())
@@ -790,10 +855,43 @@ pub enum StringOrPrompt {
     Prompt(XPrompt),
 }
 
+impl StringOrPrompt {
+    pub fn has_multiselect(&self) -> bool {
+        match self {
+            StringOrPrompt::Prompt(x) => x.has_multiselect(),
+            _ => false,
+        }
+    }
+
+    pub fn has_items(&self) -> bool {
+        match self {
+            StringOrPrompt::Prompt(x) => x.has_items(),
+            _ => false,
+        }
+    }
+
+    pub fn get_items(&self) -> Vec<String> {
+        match self {
+            StringOrPrompt::Prompt(x) => x.items.as_ref().unwrap().clone().into(),
+            _ => vec![],
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum VecOrString {
     Str(String),
     StringVec(Vec<String>),
     ItemVec(Vec<SchemaItem>),
+}
+
+impl Into<Vec<String>> for VecOrString {
+    fn into(self) -> Vec<String> {
+        match self {
+            VecOrString::Str(s) => vec![s],
+            VecOrString::StringVec(v) => v,
+            VecOrString::ItemVec(v) => v.into_iter().map(|i| i.value.to_string()).collect(),
+        }
+    }
 }

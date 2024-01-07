@@ -1,17 +1,19 @@
-use relm4::gtk::glib::GString;
-use relm4::gtk::prelude::{
-    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt, RangeExt,
-    TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
-};
-use relm4::gtk::{
-    Box, Calendar, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, Range,
-    SpinButton, StringObject, Switch, TextView, ToggleButton, Widget,
-};
-
 use crate::command_builder::{InputType, Param};
 use crate::form_utils::FormUtils;
 use crate::schema_parsing::ColorEntryFormat;
+use crate::string_list_item::StringListItem;
 use crate::traits::WidgetUtils;
+use relm4::gtk::gio::ListModel;
+use relm4::gtk::glib::{BoxedAnyObject, GString};
+use relm4::gtk::prelude::{
+    ButtonExt, Cast, CheckButtonExt, ColorChooserExt, EntryBufferExtManual, EntryExt, ListModelExt,
+    RangeExt, SelectionModelExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
+};
+use relm4::gtk::{
+    Box, Calendar, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, ListView,
+    MultiSelection, Range, SpinButton, StringObject, Switch, TextView, ToggleButton, Widget,
+};
+use std::cell::Ref;
 
 pub struct ValueExtractor<'l> {
     widget: &'l Widget,
@@ -146,6 +148,12 @@ impl<'l> ValueExtractor<'l> {
                 name,
                 value: self.get_dropdown_value(),
                 kind: InputType::DropDown,
+            })
+        } else if self.is_a::<_, ListView>(self.widget) {
+            Some(Param {
+                name,
+                value: self.get_multiselect_value(),
+                kind: InputType::Multiselect,
             })
         } else if self.is_a::<_, ComboBoxText>(self.widget) {
             Some(Param {
@@ -284,7 +292,7 @@ impl<'l> ValueExtractor<'l> {
             }
             w = w.as_ref().unwrap().next_sibling();
 
-            if (w.is_none()) {
+            if w.is_none() {
                 break String::from("");
             }
         }
@@ -299,5 +307,28 @@ impl<'l> ValueExtractor<'l> {
             .unwrap()
             .string()
             .to_string()
+    }
+
+    fn get_multiselect_value(&self) -> String {
+        let mut result: Vec<String> = vec![];
+        let list_view = self.widget.clone().downcast::<ListView>().unwrap();
+        let selection = list_view
+            .model()
+            .unwrap()
+            .downcast::<MultiSelection>()
+            .unwrap();
+        let list_model = selection.model().unwrap().downcast::<ListModel>().unwrap();
+        let items_no = list_model.n_items();
+
+        for i in 0..items_no {
+            if selection.is_selected(i) {
+                let item = list_model.item(i).unwrap();
+                let wrapper = item.downcast::<BoxedAnyObject>().unwrap();
+                let value: Ref<StringListItem> = wrapper.borrow();
+                result.push(value.value.to_string());
+            }
+        }
+
+        result.join(",")
     }
 }

@@ -1,12 +1,29 @@
 use relm4::gtk::glib::object::Object;
 use relm4::gtk::prelude::{Cast, IsA};
 use relm4::gtk::Widget;
+use sourceview5::prelude::BufferExt;
+use sourceview5::Buffer;
 
 pub trait Validator {
     fn print_error(&mut self, message: &str);
     fn print_success(&mut self, message: &str);
     fn clear_error(&mut self);
     fn clear_success(&mut self);
+}
+
+pub trait JsonBuffer {
+    fn get_json_buffer(scheme_id: Option<&str>) -> Buffer {
+        let skin = scheme_id.unwrap_or("solarized-light");
+        let buffer = Buffer::default();
+        if let Some(ref scheme) = sourceview5::StyleSchemeManager::new().scheme(skin) {
+            buffer.set_style_scheme(Some(scheme));
+        }
+        if let Some(ref language) = sourceview5::LanguageManager::new().language("json") {
+            buffer.set_language(Some(language));
+        }
+        buffer.set_highlight_syntax(true);
+        buffer
+    }
 }
 
 pub trait WidgetUtils {

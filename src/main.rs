@@ -1,7 +1,7 @@
 use gtk::prelude::{ApplicationExt, BoxExt, GtkWindowExt, OrientableExt};
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::gtk::traits::{FrameExt, GtkApplicationExt, WidgetExt};
-use relm4::gtk::{CssProvider, ShortcutsSection, ShortcutsWindow};
+use relm4::gtk::CssProvider;
 use relm4::{
     gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller, RelmApp,
     RelmWidgetExt, SimpleComponent,
@@ -53,7 +53,7 @@ struct AppModel {
 impl AppModel {
     fn get_details_title(&self) -> String {
         match &self.mode {
-            AppMode::ShowSchematic(schematic) => format!("Details: {}", schematic.clone()),
+            AppMode::ShowSchematic(schematic) => schematic.clone(),
             _ => String::from("Details"),
         }
     }
@@ -298,13 +298,7 @@ impl SimpleComponent for AppModel {
                 self.dialog.sender().send(SettingsInput::Show).unwrap();
             }
 
-            AppMsg::ShowShortCuts => {
-                let section = ShortcutsSection::builder()
-                    .section_name("Shortcuts")
-                    .build();
-
-                let builder = ShortcutsWindow::builder().section_name("");
-            }
+            AppMsg::ShowShortCuts => {}
         }
     }
 }

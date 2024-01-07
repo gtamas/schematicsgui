@@ -1,16 +1,21 @@
+use relm4::gtk::gio::ListModel;
 use relm4::gtk::glib::object::Object;
-use relm4::gtk::glib::{DateTime, GString, TimeZone};
+use relm4::gtk::glib::{BoxedAnyObject, DateTime, GString, TimeZone};
 use relm4::gtk::prelude::{
     ButtonExt, Cast, CheckButtonExt, ColorChooserExt, ComboBoxExt, EntryBufferExtManual, EntryExt,
-    IsA, ListModelExtManual, RangeExt, TextBufferExt, TextViewExt, ToggleButtonExt, WidgetExt,
+    ListModelExt, ListModelExtManual, RangeExt, SelectionModelExt, TextBufferExt, TextViewExt,
+    ToggleButtonExt, WidgetExt,
 };
 use relm4::gtk::{
-    Box, Button, Calendar, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer,
-    Range, SpinButton, StringList, StringObject, Switch, TextView, ToggleButton, Widget,
+    Box, Calendar, CheckButton, ColorButton, ComboBoxText, DropDown, Entry, EntryBuffer, ListView,
+    MultiSelection, Range, SpinButton, StringList, StringObject, Switch, TextView, ToggleButton,
+    Widget,
 };
 
 use crate::form_utils::FormUtils;
+use crate::string_list_item::StringListItem;
 use crate::traits::WidgetUtils;
+use std::cell::Ref;
 use toml::Value;
 
 pub struct ValueLoader<'l> {
@@ -28,7 +33,7 @@ impl<'l> ValueLoader<'l> {
         self.widget = widget
     }
 
-    pub fn set_value(&self, value: &Value, widget_name: &str) -> () {
+    pub fn set_value(&self, value: &Value, _widget_name: &str) -> () {
         if self.is_a::<_, Entry>(self.widget) {
             self.set_entry_value(value, None);
         } else if self.is_a::<_, TextView>(self.widget) {
@@ -67,6 +72,8 @@ impl<'l> ValueLoader<'l> {
             self.set_numeric_input(value);
         } else if self.is_a::<_, DropDown>(self.widget) {
             self.set_dropdown_value(value);
+        } else if self.is_a::<_, ListView>(self.widget) {
+            self.set_multiselect_value(value);
         } else if self.is_a::<_, ComboBoxText>(self.widget) {
             self.set_combo_box_value(value);
         }
@@ -229,8 +236,7 @@ impl<'l> ValueLoader<'l> {
 
     fn set_combo_box_value(&self, value: &Value) -> () {
         let combo: ComboBoxText = self.widget.clone().downcast::<ComboBoxText>().unwrap();
-        combo.set_active_id(Some("1"));
-        // combo.set_active(Some(0));
+        combo.set_active_id(Some(value.as_str().unwrap_or("")));
     }
 
     fn set_color_button_value(&self, value: &Value) -> () {
@@ -259,7 +265,7 @@ impl<'l> ValueLoader<'l> {
             }
             w = w.as_ref().unwrap().next_sibling();
 
-            if (w.is_none()) {
+            if w.is_none() {
                 break;
             }
         }
@@ -282,5 +288,34 @@ impl<'l> ValueLoader<'l> {
         });
 
         dropdown.set_selected(selected.unwrap() as u32);
+    }
+
+    fn set_multiselect_value(&self, value: &Value) -> () {
+        let mut selected_indexes: Vec<u32> = vec![];
+        let selected_values = value.as_str().unwrap().split(",").collect::<Vec<&str>>();
+        let selection = self
+            .widget
+            .clone()
+            .downcast::<ListView>()
+            .unwrap()
+            .model()
+            .unwrap()
+            .downcast::<MultiSelection>()
+            .unwrap();
+        let list_model = selection.model().unwrap().downcast::<ListModel>().unwrap();
+        let items_no = list_model.n_items();
+
+        for i in 0..items_no {
+            let item = list_model.item(i).unwrap();
+            let wrapper = item.downcast::<BoxedAnyObject>().unwrap();
+            let value: Ref<StringListItem> = wrapper.borrow();
+            if selected_values.contains(&value.value.as_str()) {
+                selected_indexes.push(i);
+            }
+        }
+
+        selected_indexes.iter().for_each(|i| {
+            selection.select_item(*i, false);
+        });
     }
 }

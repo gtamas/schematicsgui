@@ -1,5 +1,6 @@
 pub mod about;
 pub mod command_builder;
+pub mod config_editor_dialog;
 pub mod default_widget_builder;
 pub mod form_utils;
 pub mod package_info;

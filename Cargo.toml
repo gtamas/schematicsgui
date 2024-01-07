@@ -27,4 +27,5 @@ relm4-icons = { version = "0.6.0", features = ["plus", "minus", "color-picker", 
 serde_with = "3.3.0"
 strip-ansi-escapes = "0.2.0"
 chrono = "0.4.31"
+sourceview5 = "0.6.1"
 
