@@ -1,9 +1,10 @@
-use crate::command_builder::{CommandBuilder, InputType, Param};
+use crate::command_builder::{CommandBuilder, CommandBuilderOptions, InputType, Param};
 use crate::form_utils::FormUtils;
 use crate::impl_validation;
 use crate::schema_parsing::FsEntry;
-use crate::settings_utils::SettingsData;
+use crate::settings_utils::{Runner, SettingsData};
 use crate::traits::Validator;
+use convert_case::Case;
 use relm4::gtk::prelude::{
     BoxExt, ButtonExt, Cast, DialogExt, DisplayExt, EditableExt, EntryBufferExtManual, EntryExt,
     FileChooserExt, FileExt, GtkWindowExt, OrientableExt, TextBufferExt, TextViewExt, WidgetExt,
@@ -28,7 +29,9 @@ async fn run_schematic(
 
     for param in params {
         cmd.arg(format!("--{}", param.name));
-        cmd.arg(format!("{}", param.value));
+        if param.value.len() > 0 {
+            cmd.arg(format!("{}", param.value));
+        }
     }
 
     let child = cmd
@@ -94,7 +97,7 @@ impl SchematicExecutorModel {
         }
 
         let settings = self.settings.clone().unwrap();
-        settings.google_runner || settings.mbh_runner
+        settings.runner == Runner::Google || settings.runner == Runner::MBH
     }
 
     fn set_output<T: std::io::Read + std::marker::Send + std::marker::Sync + 'static>(
@@ -128,6 +131,7 @@ pub struct SchematicExecutorInputParams {
     pub params: Vec<Param>,
     pub schematic: String,
     pub settings: SettingsData,
+    pub package_name: String,
 }
 
 #[derive(Debug)]
@@ -423,9 +427,27 @@ impl Component for SchematicExecutorModel {
             SchematicExecutorInput::Show(data) => {
                 self.reset_view();
 
+                let options = CommandBuilderOptions {
+                    option_case: match data.settings.runner {
+                        Runner::Google => Case::Kebab,
+                        _ => Case::Camel,
+                    },
+                    escape_multiline_text: true,
+                    quote_paths: true,
+                    pass_boolean: false,
+                    ..Default::default()
+                };
+
+                self.builder = CommandBuilder::new(Some(options));
                 self.settings = Some(data.settings);
                 self.builder.set_params(data.params);
-                self.builder.set_command(data.schematic);
+                self.builder.set_command({
+                    if self.settings.as_ref().unwrap().runner == Runner::Google {
+                        format!("{}:{}", data.package_name, data.schematic)
+                    } else {
+                        data.schematic
+                    }
+                });
                 self.builder
                     .set_executable(self.settings.clone().unwrap().runner_location);
 

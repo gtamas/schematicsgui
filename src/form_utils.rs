@@ -432,6 +432,7 @@ impl FormUtils {
         button.set_css_classes(&["color_button"]);
         button.set_widget_name(name);
         button.set_title(&opts.title);
+        button.set_use_alpha(opts.alpha);
         button.set_modal(true);
         button.set_halign(Align::End);
         button.set_valign(Align::Start);

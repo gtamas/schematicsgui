@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::form_utils::FormValue;
 use crate::schema_parsing::FsEntry;
-use crate::settings_utils::SettingsUtils;
+use crate::settings_utils::{Runner, SettingsUtils};
 use crate::{form_utils::FormUtils, settings_utils::SettingsData};
 use gtk::prelude::{
     ButtonExt, CheckButtonExt, DialogExt, EntryBufferExtManual, EntryExt, FileChooserExt, FileExt,
@@ -23,10 +23,7 @@ pub struct SettingsModel {
     package: gtk::EntryBuffer,
     show_private: bool,
     show_hidden: bool,
-    google_runner: bool,
-    mbh_runner: bool,
-    custom_runner: bool,
-    group: gtk::CheckButton,
+    runner: Runner,
     error: bool,
     success: bool,
     message: String,
@@ -68,9 +65,6 @@ impl Index<&'_ str> for SettingsModel {
         match s {
             "show_private" => &self.show_private,
             "show_hidden" => &self.show_hidden,
-            "google_runner" => &self.google_runner,
-            "mbh_runner" => &self.mbh_runner,
-            "custom_runner" => &self.custom_runner,
             _ => panic!("unknown field: {}", s),
         }
     }
@@ -81,9 +75,6 @@ impl IndexMut<&'_ str> for SettingsModel {
         match s {
             "show_private" => &mut self.show_private,
             "show_hidden" => &mut self.show_hidden,
-            "google_runner" => &mut self.google_runner,
-            "mbh_runner" => &mut self.mbh_runner,
-            "custom_runner" => &mut self.custom_runner,
             _ => panic!("unknown field: {}", s),
         }
     }
@@ -260,38 +251,6 @@ impl SimpleComponent for SettingsModel {
                     sender.input(SettingsInput::ToggleCheckbox(button.is_active(), "show_hidden".to_string()));
                   }
                 },
-                attach[ 0, 5, 3, 1]: google_runner = &gtk::CheckButton {
-                  set_group: Some(&model.group),
-                  set_label: Some("The selected runner is Google runner"),
-                  set_css_classes: &["google_runner_checkbox", "checkbox"],
-
-                  set_active: model.google_runner,
-                  connect_toggled[sender] => move |button| {
-                     sender.input(SettingsInput::ToggleCheckbox(button.is_active(), "google_runner".to_string()));
-                  }
-                },
-                attach[ 0, 6, 3, 1]: mbh_runner = &gtk::CheckButton {
-                  set_group: Some(&model.group),
-                  set_label: Some("The selected runner is MBH runner"),
-                  set_css_classes: &["google_runner_checkbox", "checkbox"],
-
-                  set_active: model.mbh_runner,
-                  connect_toggled[sender] => move |button| {
-                     sender.input(SettingsInput::ToggleCheckbox(button.is_active(), "mbh_runner".to_string()));
-                  }
-                },
-
-                 attach[ 0, 7, 3, 1]: custom_runner = &gtk::CheckButton {
-                  set_group: Some(&model.group),
-                  set_label: Some("The selected runner is a custom runner"),
-                  set_css_classes: &["custom_runner_checkbox", "checkbox"],
-                  set_active: model.custom_runner,
-                  connect_toggled[sender] => move |button| {
-                     sender.input(SettingsInput::ToggleCheckbox(button.is_active(), "custom_runner".to_string()));
-                  }
-                }
-
-
 
               }
             },
@@ -322,10 +281,7 @@ impl SimpleComponent for SettingsModel {
             package: gtk::EntryBuffer::default(),
             show_private: false,
             show_hidden: false,
-            google_runner: false,
-            mbh_runner: false,
-            custom_runner: true,
-            group: gtk::CheckButton::new(),
+            runner: Runner::Google,
             error: false,
             success: false,
             message: String::default(),
@@ -347,8 +303,7 @@ impl SimpleComponent for SettingsModel {
                     self.collection.set_text(data.schematics_collection);
                     self.schematic_runner.set_text(data.runner_location);
                     self.show_private = data.show_private;
-                    self.google_runner = data.google_runner;
-                    self.mbh_runner = data.mbh_runner;
+                    self.runner = data.runner;
                 }
                 self.hidden = false;
             }
@@ -374,6 +329,14 @@ impl SimpleComponent for SettingsModel {
 
                 self.clear_error();
 
+                let runner_location = self.schematic_runner.text().to_string();
+                let runner = if runner_location.ends_with("/schematics") {
+                    Runner::Google
+                } else if runner_location.ends_with("/fnd") {
+                    Runner::MBH
+                } else {
+                    Runner::Custom
+                };
                 let settings = SettingsUtils::new();
                 let data = SettingsData {
                     runner_location: self.schematic_runner.text().to_string(),
@@ -381,9 +344,7 @@ impl SimpleComponent for SettingsModel {
                     schematics_package: self.package.text().to_string(),
                     show_private: self.show_private,
                     show_hidden: self.show_hidden,
-                    google_runner: self.google_runner,
-                    mbh_runner: self.mbh_runner,
-                    custom_runner: self.custom_runner,
+                    runner,
                 };
                 settings.write(&data);
                 sender

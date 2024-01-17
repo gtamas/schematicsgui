@@ -5,15 +5,20 @@ use std::path::{Path, PathBuf};
 pub struct SettingsUtils;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum Runner {
+    Google,
+    MBH,
+    Custom,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SettingsData {
+    pub runner: Runner,
     pub runner_location: String,
     pub schematics_collection: String,
     pub schematics_package: String,
     pub show_private: bool,
     pub show_hidden: bool,
-    pub google_runner: bool,
-    pub mbh_runner: bool,
-    pub custom_runner: bool,
 }
 
 impl Default for SettingsData {
@@ -24,9 +29,7 @@ impl Default for SettingsData {
             schematics_package: String::default(),
             show_private: false,
             show_hidden: false,
-            google_runner: false,
-            mbh_runner: true,
-            custom_runner: false,
+            runner: Runner::Google,
         }
     }
 }

@@ -1,3 +1,5 @@
+use convert_case::{Case, Casing};
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandBuilder {
     params: Vec<Param>,
@@ -54,9 +56,11 @@ impl Default for Param {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandBuilderOptions {
-    escape_multiline_text: bool,
-    quote_paths: bool,
-    configurable: Option<String>,
+    pub escape_multiline_text: bool,
+    pub quote_paths: bool,
+    pub option_case: Case,
+    pub pass_boolean: bool,
+    pub configurable: Option<String>,
 }
 
 impl Default for CommandBuilderOptions {
@@ -64,7 +68,9 @@ impl Default for CommandBuilderOptions {
         CommandBuilderOptions {
             escape_multiline_text: false,
             quote_paths: false,
+            pass_boolean: true,
             configurable: None,
+            option_case: Case::Camel,
         }
     }
 }
@@ -91,12 +97,53 @@ impl CommandBuilder {
         format!("\"{}\"", path.replace(&['"'], "\""))
     }
 
+    fn get_param_name(&self, param: &Param) -> String {
+        if self.options.pass_boolean == false {
+            if param.value == "true" {
+                return param.name.to_case(self.options.option_case);
+            } else if param.value == "false" {
+                return format!("no-{}", param.name).to_case(self.options.option_case);
+            }
+        }
+        param.name.to_case(self.options.option_case)
+    }
+
+    fn get_param_value(&self, param: &Param) -> String {
+        match param.kind {
+            InputType::Checkbox | InputType::Switch | InputType::Toggle => {
+                if self.options.pass_boolean == false {
+                    return String::default();
+                }
+                return param.value.clone();
+            }
+            InputType::TextArea => return self.escape_str(&param.value),
+            InputType::File | InputType::Dir => {
+                if self.options.quote_paths {
+                    return self.escape_path(&param.value);
+                }
+                param.value.clone()
+            }
+
+            _ => {
+                if self.options.configurable.is_some()
+                    && self.options.configurable.clone().unwrap() == param.name
+                    && param.value == "true"
+                {
+                    return String::default();
+                }
+                return param.value.clone();
+            }
+        }
+    }
+
     pub fn set_configurable(&mut self, value: String) {
         self.options.configurable = Some(value);
     }
 
     pub fn set_params(&mut self, params: Vec<Param>) {
-        self.params = params;
+        for param in params {
+            self.add(param);
+        }
     }
 
     pub fn set_executable(&mut self, executable: String) {
@@ -116,7 +163,11 @@ impl CommandBuilder {
     }
 
     pub fn add(&mut self, param: Param) {
-        self.params.push(param)
+        self.params.push(Param {
+            name: self.get_param_name(&param),
+            value: self.get_param_value(&param),
+            kind: param.kind,
+        })
     }
 
     pub fn to_params(&self) -> Vec<Param> {
@@ -149,25 +200,32 @@ impl CommandBuilder {
         self.to_params()
             .clone()
             .iter()
-            .map(|m| {
-                format!("--{}{}{}", m.name, separator, {
-                    if m.kind == InputType::TextArea {
-                        self.escape_str(&m.value)
-                    } else if self.options.quote_paths
-                        && (m.kind == InputType::File || m.kind == InputType::Dir)
-                    {
-                        self.escape_path(&m.value)
-                    } else if self.options.configurable.is_some()
-                        && self.options.configurable.clone().unwrap() == m.name
-                        && m.value == "true"
-                    {
-                        String::default()
-                    } else {
-                        m.value.clone()
-                    }
-                })
-            })
+            .map(|m| format!("--{}{}{}", m.name, separator, m.value))
             .collect::<Vec<String>>()
             .join(" ")
     }
 }
+
+// {
+//                     if m.kind == InputType::TextArea {
+//                         self.escape_str(&m.value)
+//                     } else if self.options.quote_paths
+//                         && (m.kind == InputType::File || m.kind == InputType::Dir)
+//                     {
+//                         self.escape_path(&m.value)
+//                     } else if self.options.configurable.is_some()
+//                         && self.options.configurable.clone().unwrap() == m.name
+//                         && m.value == "true"
+//                     {
+//                       String::default()
+//                     } else if m.kind == InputType::Checkbox || m.kind == InputType::Switch || m.kind == InputType::Toggle {
+//                       if self.options.pass_boolean == false {
+//                         String::default()
+//                       } else {
+//                         m.value.clone()
+//                       }
+
+//                     } else {
+//                         m.value.clone()
+//                     }
+//                 }

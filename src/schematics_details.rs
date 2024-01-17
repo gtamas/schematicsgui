@@ -196,6 +196,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                         params,
                         schematic: self.schematic.clone(),
                         settings: self.settings.as_ref().unwrap().clone(),
+                        package_name: self.package.as_ref().unwrap().name.clone(),
                     }))
                     .unwrap();
 
