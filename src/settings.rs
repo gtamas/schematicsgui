@@ -1,3 +1,4 @@
+use is_executable::IsExecutable;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
@@ -34,8 +35,10 @@ impl SettingsModel {
         let schematic = self.schematic_runner.text();
         let collection = self.collection.text();
         let package = self.package.text();
+        let node = self.node.text();
 
         let values: Vec<FormValue<'_>> = vec![
+            FormValue::new("node executable", node.as_str()),
             FormValue::new("schematics runner", schematic.as_str()),
             FormValue::new("schematics collection", collection.as_str()),
             FormValue::new("schematics package", package.as_str()),
@@ -43,7 +46,7 @@ impl SettingsModel {
 
         for field in values {
             let path = Path::new(field.value);
-            if field.value.len() == 0 {
+            if field.value.is_empty() {
                 self.print_error(&format!("The '{}' field is mandatory!", field.name));
                 return false;
             } else if !path.exists() || !path.is_file() {
@@ -51,6 +54,11 @@ impl SettingsModel {
                     "The '{}' doesn't exist or it's not a file!",
                     field.name
                 ));
+                return false;
+            } else if (field.name == "node executable" || field.name == "schematics runner")
+                && !path.is_executable()
+            {
+                self.print_error(&format!("The '{}' is not executable file!", field.name));
                 return false;
             }
         }
@@ -132,7 +140,7 @@ impl SimpleComponent for SettingsModel {
                   set_css_classes: &["label", "error"],
                   set_halign: gtk::Align::Center,
                   #[watch]
-                  set_label: &format!("Error: {}", &model.message)
+                  set_label: &(model.message).to_string()
                 },
               },
               gtk::Grid {
@@ -140,14 +148,45 @@ impl SimpleComponent for SettingsModel {
                 set_column_spacing: 5,
                 set_orientation: gtk::Orientation::Horizontal,
 
-                attach[ 0, 0, 1, 1]:  &FormUtils::new().label("schematics collection", "schematicsCollLabel", None, Some(vec! ["label_right"])),
-                attach[1, 0, 1, 1]: schematics_location = &gtk::Entry {
+
+                attach[ 0, 0, 1, 1]:  &FormUtils::new().label("node executable", "nodelLabel", None, Some(vec! ["label_right"])),
+                attach[1, 0, 1, 1]: node_location = &gtk::Entry {
+                  set_widget_name: "nodeInput",
+                  set_hexpand: true,
+                  set_css_classes: &["inputText",  "text_input"],
+                  set_buffer: &model.node,
+                },
+                attach[ 2, 0, 1, 1]: node_browse_button = &gtk::Button {
+                  set_icon_name: "document-open",
+                  set_tooltip: "Browse file",
+                  set_css_classes: &["node_browse_button", "button", "action_icon"],
+                  connect_clicked[sender, root] => move |_| {
+                    let dialog = FormUtils::new().file_chooser("Node executable",&root,None,None);
+                    let send = sender.clone();
+                    dialog.connect_response(move |file_chooser, resp| {
+                        match resp {
+                          ResponseType::Cancel => file_chooser.close(),
+                          ResponseType::Accept => {
+                            let file_name = file_chooser.file().unwrap().parse_name().to_string();
+                            send.input(SettingsInput::NodeSelect(file_name));
+                            file_chooser.close();
+                          },
+                          _ => ()
+                        }
+                    });
+                    dialog.show();
+
+                  }
+                },
+
+                attach[ 0, 1, 1, 1]:  &FormUtils::new().label("schematics collection", "schematicsCollLabel", None, Some(vec! ["label_right"])),
+                attach[1, 1, 1, 1]: schematics_location = &gtk::Entry {
                   set_widget_name: "schematicsColInput",
                   set_hexpand: true,
                   set_css_classes: &["inputText",  "text_input"],
                   set_buffer: &model.collection,
                 },
-                attach[ 2, 0, 1, 1]: schematics_browse_button = &gtk::Button {
+                attach[ 2, 1, 1, 1]: schematics_browse_button = &gtk::Button {
                   set_icon_name: "document-open",
                   set_tooltip: "Browse file",
                   set_css_classes: &["schematics_browse_button", "button", "action_icon"],
@@ -173,13 +212,13 @@ impl SimpleComponent for SettingsModel {
                   }
                 },
 
-                attach[ 0, 1, 1, 1]:  &FormUtils::new().label("Schematics package", "schematicsPkgLabel", None, Some(vec! ["label_right"])),
-                attach[1, 1, 1, 1]: package_location = &gtk::Entry {
+                attach[ 0, 2, 1, 1]:  &FormUtils::new().label("Schematics package", "schematicsPkgLabel", None, Some(vec! ["label_right"])),
+                attach[1, 2, 1, 1]: package_location = &gtk::Entry {
                   set_widget_name: "schematicsPkgInput",
                   set_css_classes: &["inputText",  "text_input"],
                   set_buffer: &model.package,
                 },
-                attach[ 2, 1, 1, 1]: package_browse_button = &gtk::Button {
+                attach[ 2, 2, 1, 1]: package_browse_button = &gtk::Button {
                   set_icon_name: "document-open",
                   set_tooltip: "Browse file",
                   set_css_classes: &["schematics_browse_button", "button",  "action_icon"],
@@ -205,13 +244,13 @@ impl SimpleComponent for SettingsModel {
                   }
                 },
 
-                attach[ 0, 2, 1, 1]:  &FormUtils::new().label("schematics runner", "schematicsRunnerLabel", None, Some(vec! ["label_right"])),
-                attach[1, 2, 1, 1]: schematics_runner = &gtk::Entry {
+                attach[ 0, 3, 1, 1]:  &FormUtils::new().label("schematics runner", "schematicsRunnerLabel", None, Some(vec! ["label_right"])),
+                attach[1, 3, 1, 1]: schematics_runner = &gtk::Entry {
                   set_widget_name: "schematicsRunnerInput",
                   set_css_classes: &["inputText", "text_input"],
                   set_buffer: &model.schematic_runner,
                 },
-                 attach[ 2, 2, 1, 1]: runner_browse_button = &gtk::Button {
+                 attach[ 2, 3, 1, 1]: runner_browse_button = &gtk::Button {
                   set_icon_name: "document-open",
                   set_tooltip: "Browse file",
                   set_css_classes: &["runner_browse_button", "button", "action_icon"],
@@ -233,7 +272,7 @@ impl SimpleComponent for SettingsModel {
 
                   }
                 },
-                attach[ 0, 3, 3, 1]: show_private = &gtk::CheckButton {
+                attach[ 0, 4, 3, 1]: show_private = &gtk::CheckButton {
                   set_label: Some("Show private"),
                   set_css_classes: &["show_private_checkbox", "checkbox"],
                   #[watch]
@@ -242,7 +281,7 @@ impl SimpleComponent for SettingsModel {
                     sender.input(SettingsInput::ToggleCheckbox(button.is_active(), "show_private".to_string()));
                   }
                 },
-                attach[ 0, 4, 3, 1]: show_hidden = &gtk::CheckButton {
+                attach[ 0, 5, 3, 1]: show_hidden = &gtk::CheckButton {
                   set_label: Some("Show hidden"),
                   set_css_classes: &["show_hidden_checkbox", "checkbox"],
                   #[watch]
@@ -299,6 +338,7 @@ impl SimpleComponent for SettingsModel {
                 let utils = SettingsUtils::new();
                 if utils.exists() {
                     let data = utils.read();
+                    self.node.set_text(data.node_binary);
                     self.package.set_text(data.schematics_package);
                     self.collection.set_text(data.schematics_collection);
                     self.schematic_runner.set_text(data.runner_location);
@@ -339,6 +379,7 @@ impl SimpleComponent for SettingsModel {
                 };
                 let settings = SettingsUtils::new();
                 let data = SettingsData {
+                    node_binary: self.node.text().to_string(),
                     runner_location: self.schematic_runner.text().to_string(),
                     schematics_collection: self.collection.text().to_string(),
                     schematics_package: self.package.text().to_string(),

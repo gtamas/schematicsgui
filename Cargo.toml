@@ -12,6 +12,16 @@ documentation = "https://github.com/gtamas/schematicsgui"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata.bundle]
+name = "Schematics UI"
+identifier = "com.github.gtamas.schematicsgui"
+copyright = "Copyright (c) Tamas Geschitz 2024. All rights reserved."
+category = "Developer Tool"
+short_description = "A general purpose GUI generator for Schematics."
+version = "1.0.0"
+icon = ["resources/icons/icon_32x32.png","resources/icons/icon_128x128.png"]
+resources = ["resources"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -29,4 +39,6 @@ strip-ansi-escapes = "0.2.0"
 chrono = "0.4.31"
 sourceview5 = "0.6.1"
 convert_case = "0.6.0"
+is_executable = "1.0.1"
+mockall = "0.12.1"
 

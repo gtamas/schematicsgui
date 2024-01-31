@@ -4,6 +4,12 @@ use std::path::{Path, PathBuf};
 
 pub struct SettingsUtils;
 
+impl Default for SettingsUtils {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Runner {
     Google,
@@ -14,6 +20,7 @@ pub enum Runner {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SettingsData {
     pub runner: Runner,
+    pub node_binary: String,
     pub runner_location: String,
     pub schematics_collection: String,
     pub schematics_package: String,
@@ -24,6 +31,7 @@ pub struct SettingsData {
 impl Default for SettingsData {
     fn default() -> Self {
         SettingsData {
+            node_binary: String::default(),
             runner_location: String::default(),
             schematics_collection: String::default(),
             schematics_package: String::default(),
@@ -53,7 +61,7 @@ impl SettingsUtils {
         Path::new(&home_dir).join("schematics-gui").to_owned()
     }
 
-    pub fn init(&self) -> () {
+    pub fn init(&self) {
         let config_dir: PathBuf = Self::get_config_dir();
 
         if !config_dir.exists() {
@@ -83,5 +91,113 @@ impl SettingsUtils {
         };
         let settings: SettingsData = toml::from_str(&contents).unwrap();
         settings
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env::{remove_var, set_var, temp_dir};
+
+    use super::*;
+
+    #[test]
+    fn get_config_dir_without_home() {
+        remove_var("HOME");
+
+        let current_dir = std::env::current_dir().unwrap();
+        let dir = SettingsUtils::get_config_dir();
+        assert_eq!(dir, current_dir.join("schematics-gui"));
+    }
+
+    #[test]
+    fn get_config_dir_with_home() {
+        set_var("HOME", "test");
+
+        let dir = SettingsUtils::get_config_dir();
+        assert_eq!(dir, PathBuf::new().join("test").join("schematics-gui"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Could not create settings dir!")]
+    fn init_fail() {
+        set_var("HOME", "/tmp/no/such/dir");
+
+        let settings = SettingsUtils::default();
+        settings.init();
+    }
+
+    #[test]
+    fn init_success() {
+        set_var("HOME", temp_dir());
+
+        let settings = SettingsUtils::default();
+        settings.init();
+        let cfg_dir = SettingsUtils::get_config_dir();
+        assert!(cfg_dir.exists())
+    }
+
+    #[test]
+    fn exists_fail() {
+        set_var("HOME", "/tmp/no/dir");
+
+        let settings = SettingsUtils::default();
+
+        let result = settings.exists();
+        assert!(!result);
+    }
+
+    #[test]
+    fn exists_success() {
+        set_var("HOME", temp_dir());
+
+        let settings = SettingsUtils::default();
+        let data = SettingsData::default();
+        settings.init();
+        settings.write(&data);
+
+        let result = settings.exists();
+        assert!(result);
+    }
+
+    #[test]
+    #[should_panic(expected = "Could not save settings!")]
+    fn write_fail() {
+        set_var("HOME", "/tmp/no/dir");
+
+        let settings = SettingsUtils::default();
+        let data = SettingsData::default();
+        settings.write(&data);
+    }
+
+    #[test]
+    fn write_success() {
+        set_var("HOME", temp_dir());
+
+        let settings = SettingsUtils::default();
+        let data = SettingsData::default();
+        settings.write(&data);
+        let cfg_dir = SettingsUtils::get_config_dir();
+        assert!(cfg_dir.join("settings.toml").exists())
+    }
+
+    #[test]
+    #[should_panic(expected = "Could not read settings!")]
+    fn read_fail() {
+        set_var("HOME", "/tmp/no/dir");
+
+        let settings = SettingsUtils::default();
+        settings.read();
+    }
+
+    #[test]
+    fn read_success() {
+        set_var("HOME", temp_dir());
+
+        let settings = SettingsUtils::default();
+        let data = SettingsData::default();
+        settings.init();
+        settings.write(&data);
+        let loaded = settings.read();
+        assert_eq!(loaded, data)
     }
 }

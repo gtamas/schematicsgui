@@ -33,7 +33,7 @@ impl<'l> ValueLoader<'l> {
         self.widget = widget
     }
 
-    pub fn set_value(&self, value: &Value, _widget_name: &str) -> () {
+    pub fn set_value(&self, value: &Value, _widget_name: &str) {
         if self.is_a::<_, Entry>(self.widget) {
             self.set_entry_value(value, None);
         } else if self.is_a::<_, TextView>(self.widget) {
@@ -79,24 +79,22 @@ impl<'l> ValueLoader<'l> {
         }
     }
 
-    fn set_entry_value(&self, value: &Value, entry: Option<Widget>) -> () {
-        let bf: EntryBuffer;
-
-        if entry.is_some() {
-            bf = entry.unwrap().clone().downcast::<Entry>().unwrap().buffer();
+    fn set_entry_value(&self, value: &Value, entry: Option<Widget>) {
+        let bf: EntryBuffer = if let Some(entry_value) = entry {
+            entry_value.clone().downcast::<Entry>().unwrap().buffer()
         } else {
-            bf = self.widget.clone().downcast::<Entry>().unwrap().buffer();
-        }
+            self.widget.clone().downcast::<Entry>().unwrap().buffer()
+        };
 
         bf.set_text(value.as_str().unwrap_or_default());
     }
 
-    fn set_text_view_value(&self, value: &Value) -> () {
+    fn set_text_view_value(&self, value: &Value) {
         let bf = self.widget.clone().downcast::<TextView>().unwrap().buffer();
         bf.set_text(value.as_str().unwrap_or_default());
     }
 
-    fn set_slider_value(&self, value: &Value, container: &Box) -> () {
+    fn set_slider_value(&self, value: &Value, container: &Box) {
         let scale = container
             .first_child()
             .unwrap()
@@ -113,10 +111,10 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
-    fn set_date_time_value(&self, value: &Value, container: &Box) -> () {
+    fn set_date_time_value(&self, value: &Value, container: &Box) {
         let default_date = FormUtils::format_date(String::from(""), &DateTime::now_utc().unwrap());
         let vale_str = value.as_str().unwrap_or(default_date.as_str());
-        let v = vale_str.split(" ").collect::<Vec<&str>>();
+        let v = vale_str.split(' ').collect::<Vec<&str>>();
 
         self.set_date_value(value, container);
 
@@ -132,7 +130,7 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
-    fn set_date_value(&self, value: &Value, container: &Box) -> () {
+    fn set_date_value(&self, value: &Value, container: &Box) {
         let default_date =
             FormUtils::format_date(String::from("%Y-%m-%d"), &DateTime::now_utc().unwrap());
         let vale_str = format!(
@@ -150,11 +148,11 @@ impl<'l> ValueLoader<'l> {
         calendar.select_day(&d.unwrap());
     }
 
-    fn set_time_value(&self, value: &Value, container: &Box) -> () {
+    fn set_time_value(&self, value: &Value, container: &Box) {
         let mut v = value
             .as_str()
             .unwrap_or("0:0:0")
-            .split(":")
+            .split(':')
             .collect::<Vec<&str>>();
 
         if v.len() != 3 {
@@ -190,7 +188,7 @@ impl<'l> ValueLoader<'l> {
         }
     }
 
-    fn set_toggle_button_value(&self, value: &Value) -> () {
+    fn set_toggle_button_value(&self, value: &Value) {
         let toggle = self.widget.clone().downcast::<ToggleButton>().unwrap();
         toggle.set_active(
             value
@@ -201,7 +199,7 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
-    fn set_check_button_value(&self, value: &Value) -> () {
+    fn set_check_button_value(&self, value: &Value) {
         let checkbox = self.widget.clone().downcast::<CheckButton>().unwrap();
         checkbox.set_active(
             value
@@ -212,7 +210,7 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
-    fn set_numeric_input(&self, value: &Value) -> () {
+    fn set_numeric_input(&self, value: &Value) {
         let entry = self.widget.clone().downcast::<SpinButton>().unwrap();
         entry.set_value(
             value
@@ -223,7 +221,7 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
-    fn set_switch_value(&self, value: &Value) -> () {
+    fn set_switch_value(&self, value: &Value) {
         let switch = self.widget.clone().downcast::<Switch>().unwrap();
         switch.set_active(
             value
@@ -234,18 +232,18 @@ impl<'l> ValueLoader<'l> {
         );
     }
 
-    fn set_combo_box_value(&self, value: &Value) -> () {
+    fn set_combo_box_value(&self, value: &Value) {
         let combo: ComboBoxText = self.widget.clone().downcast::<ComboBoxText>().unwrap();
         combo.set_active_id(Some(value.as_str().unwrap_or("")));
     }
 
-    fn set_color_button_value(&self, value: &Value) -> () {
+    fn set_color_button_value(&self, value: &Value) {
         let button = self.widget.clone().downcast::<ColorButton>().unwrap();
         let rgb = FormUtils::color_str_to_rgba(value.as_str().unwrap_or("rgb(0,0,0)"));
         button.set_rgba(&rgb);
     }
 
-    fn set_group_value(&self, value: &Value, container: &Box) -> () {
+    fn set_group_value(&self, value: &Value, container: &Box) {
         let mut w = container.first_child();
 
         loop {
@@ -271,7 +269,7 @@ impl<'l> ValueLoader<'l> {
         }
     }
 
-    fn set_dropdown_value(&self, value: &Value) -> () {
+    fn set_dropdown_value(&self, value: &Value) {
         let dropdown = self.widget.clone().downcast::<DropDown>().unwrap();
         let items = dropdown.model().unwrap().downcast::<StringList>().unwrap();
         let selected = items.iter::<Object>().position(|f| {
@@ -282,7 +280,7 @@ impl<'l> ValueLoader<'l> {
                     .unwrap()
                     .string()
                     .to_string();
-                return s == value.as_str().unwrap().to_string();
+                return s == *value.as_str().unwrap();
             }
             false
         });
@@ -290,9 +288,9 @@ impl<'l> ValueLoader<'l> {
         dropdown.set_selected(selected.unwrap() as u32);
     }
 
-    fn set_multiselect_value(&self, value: &Value) -> () {
+    fn set_multiselect_value(&self, value: &Value) {
         let mut selected_indexes: Vec<u32> = vec![];
-        let selected_values = value.as_str().unwrap().split(",").collect::<Vec<&str>>();
+        let selected_values = value.as_str().unwrap().split(',').collect::<Vec<&str>>();
         let selection = self
             .widget
             .clone()

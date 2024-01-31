@@ -47,6 +47,12 @@ impl<'l> FormValue<'l> {
 
 impl WidgetUtils for FormUtils {}
 
+impl Default for FormUtils {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FormUtils {
     pub fn new() -> Self {
         FormUtils {}
@@ -64,7 +70,7 @@ impl FormUtils {
     }
 
     pub fn format_date(format: String, date: &DateTime) -> GString {
-        if format != "" {
+        if !format.is_empty() {
             return date
                 .format(&format)
                 .unwrap_or(date.format("%Y-%m-%d %H:%M:%S").unwrap());
@@ -95,11 +101,11 @@ impl FormUtils {
     pub fn color_str_to_rgba(color: &str) -> RGBA {
         let default = Rgb::from(0.0, 0.0, 0.0);
         let mut color_value = Rgb::from(default.get_red(), default.get_green(), default.get_blue());
-        if color.starts_with("#") {
+        if color.starts_with('#') {
             color_value = Rgb::from_hex_str(color).unwrap_or(default);
         } else if color.starts_with("rgb") {
             color_value = color.parse::<Rgb>().unwrap_or(default);
-        } else if color.contains("%") {
+        } else if color.contains('%') {
             let hsl = color.parse::<Hsl>().unwrap_or(Hsl::from(0.0, 0.0, 0.0));
             color_value = hsl.to_rgb();
         }
@@ -130,7 +136,7 @@ impl FormUtils {
         rgba.to_string()
     }
 
-    fn get_menu_default(items: &Vec<String>, default: Option<Primitive>) -> u32 {
+    fn get_menu_default(items: &[String], default: Option<Primitive>) -> u32 {
         let mut index = 0;
         if default.is_some() {
             let d: String = default.unwrap().into();
@@ -154,9 +160,9 @@ impl FormUtils {
         if options.value_type == NumericValueType::Float {
             if default.is_some() {
                 let dstr: String = default.clone().unwrap().into();
-                let has_decimals = dstr.contains(".");
+                let has_decimals = dstr.contains('.');
                 if has_decimals {
-                    return dstr.split(".").last().unwrap().len() as i32;
+                    return dstr.split('.').last().unwrap().len() as i32;
                 } else {
                     return 0;
                 }
@@ -181,8 +187,8 @@ impl FormUtils {
         align: Option<Justification>,
         css: Option<Vec<&str>>,
     ) -> Label {
-        let label = Label::new(Some(&text));
-        let mut css_classes = css.unwrap_or(vec![]);
+        let label = Label::new(Some(text));
+        let mut css_classes = css.unwrap_or_default();
         let mut css_default = vec!["label"];
         css_classes.append(&mut css_default);
         let alignment = align.unwrap_or(Justification::Left);
@@ -296,10 +302,18 @@ impl FormUtils {
             }
         };
 
+        let title = if let Some(custom_title) = opts.clone().title {
+            custom_title
+        } else if opts.is_dir {
+            String::from("Choose a directory")
+        } else {
+            String::from("Choose a file")
+        };
+
         let entry = self.text_input(name, None, None);
 
-        if buf.is_some() {
-            entry.set_buffer(buf.unwrap());
+        if let Some(buf_value) = buf {
+            entry.set_buffer(buf_value);
         }
 
         entry.set_hexpand(true);
@@ -316,23 +330,16 @@ impl FormUtils {
         button.connect_clicked(move |b: &Button| {
             let buffer = buffer.clone();
             let win = b.root().unwrap().downcast::<ApplicationWindow>();
-            let dialog: FileChooserDialog;
-
-            if win.is_err() {
-                dialog = FormUtils::new().file_chooser(
-                    &opts.clone().title.unwrap_or_default(),
+            let dialog: FileChooserDialog = if let Ok(win_value) = win {
+                FormUtils::new().file_chooser(&title, &win_value, Some(action), Some(opts.clone()))
+            } else {
+                FormUtils::new().file_chooser(
+                    &title,
                     &b.root().unwrap().downcast::<Dialog>().unwrap(),
                     Some(action),
                     Some(opts.clone()),
-                );
-            } else {
-                dialog = FormUtils::new().file_chooser(
-                    &opts.clone().title.unwrap_or_default(),
-                    &win.unwrap(),
-                    Some(action),
-                    Some(opts.clone()),
-                );
-            }
+                )
+            };
 
             dialog.show();
             dialog.connect_response(move |dialog, resp| match resp {
@@ -347,7 +354,7 @@ impl FormUtils {
         });
 
         let form = self.browse_button_with_entry(&entry, &button);
-        form.set_widget_name(&name);
+        form.set_widget_name(name);
         form.set_css_classes(&["file_input_container"]);
         form
     }
@@ -369,7 +376,7 @@ impl FormUtils {
             let default_date: Option<DateTime> = Some(default.clone().unwrap().into());
             buffer.set_text(Self::format_date(
                 opts.format.clone(),
-                &default_date.as_ref().unwrap(),
+                default_date.as_ref().unwrap(),
             ));
         }
 
@@ -405,9 +412,10 @@ impl FormUtils {
             content.append(&calendar);
 
             dialog.show();
-            dialog.connect_response(move |dialog, resp| match resp {
-                ResponseType::Ok => dialog.close(),
-                _ => (),
+            dialog.connect_response(move |dialog, resp| {
+                if resp == ResponseType::Ok {
+                    dialog.close()
+                }
             });
         });
 
@@ -461,8 +469,8 @@ impl FormUtils {
 
         if default.is_some() {
             color = default.clone().unwrap().into();
-            let rgba: Option<RGBA> = Some(Self::parse_color(color));
-            buffer.set_text(Self::format_color_str(opts.format.clone(), &rgba.unwrap()));
+            let rgba = Self::parse_color(color);
+            buffer.set_text(Self::format_color_str(opts.format.clone(), &rgba));
         }
 
         let entry_clone = entry.clone();
@@ -572,8 +580,8 @@ impl FormUtils {
             }
         }]);
 
-        if icon.is_some() {
-            button.set_icon_name(icon.unwrap());
+        if let Some(icon_value) = icon {
+            button.set_icon_name(icon_value);
         }
 
         button.set_widget_name(name);
@@ -593,7 +601,7 @@ impl FormUtils {
         entry.set_css_classes(&["text_input"]);
         entry.set_widget_name(name);
 
-        if opts.icon != "" {
+        if !opts.icon.is_empty() {
             if opts.icon_position == IconPositionType::Start {
                 entry.set_primary_icon_activatable(false);
                 entry.set_primary_icon_name(Some(&opts.icon));
@@ -685,7 +693,7 @@ impl FormUtils {
             }
 
             let widget =
-                self.checkbox_or_radio(&name, Some(&group), None, Some(Primitive::Bool(active)));
+                self.checkbox_or_radio(name, Some(&group), None, Some(Primitive::Bool(active)));
             widget.set_label(Some(value));
 
             container.append(&widget);
@@ -719,8 +727,8 @@ impl FormUtils {
             }
 
             let widget =
-                self.toggle_button(&name, Some(&group), None, Some(Primitive::Bool(active)));
-            widget.set_label(&value);
+                self.toggle_button(name, Some(&group), None, Some(Primitive::Bool(active)));
+            widget.set_label(value);
             container.append(&widget);
         }
 
@@ -738,7 +746,7 @@ impl FormUtils {
     ) -> CheckButton {
         let opts = options.unwrap_or_default();
         let checkbox = {
-            if opts.label != "" && !group.is_some() {
+            if !opts.label.is_empty() && group.is_none() {
                 CheckButton::with_label(&opts.label)
             } else {
                 CheckButton::new()
@@ -753,8 +761,8 @@ impl FormUtils {
             checkbox.set_css_classes(&["checkbox"]);
         }
 
-        if default.is_some() {
-            checkbox.set_active(default.unwrap().into());
+        if let Some(default_value) = default {
+            checkbox.set_active(default_value.into());
         }
 
         checkbox
@@ -769,7 +777,7 @@ impl FormUtils {
     ) -> ToggleButton {
         let opts = options.unwrap_or_default();
         let button = {
-            if opts.label != "" && !group.is_some() {
+            if !opts.label.is_empty() && group.is_none() {
                 ToggleButton::with_label(&opts.label)
             } else {
                 ToggleButton::new()
@@ -783,8 +791,8 @@ impl FormUtils {
             button.set_group(group);
         }
 
-        if default.is_some() {
-            button.set_active(default.unwrap().into());
+        if let Some(default_value) = default {
+            button.set_active(default_value.into());
         }
 
         button
@@ -953,7 +961,7 @@ impl FormUtils {
     pub fn multiselect_input(
         &self,
         name: &str,
-        items: &Vec<String>,
+        items: &[String],
         options: Option<MenuEntry>,
         default: Option<Primitive>,
     ) -> ListView {
@@ -983,7 +991,7 @@ impl FormUtils {
     pub fn dropdown(
         &self,
         name: &str,
-        items: &Vec<String>,
+        items: &[String],
         options: Option<MenuEntry>,
         default: Option<Primitive>,
     ) -> DropDown {
@@ -1011,7 +1019,7 @@ impl FormUtils {
     pub fn combobox_text(
         &self,
         name: &str,
-        items: &Vec<String>,
+        items: &[String],
         // TODO: Implement searchable and orientation options if it makes sense.
         _options: Option<MenuEntry>,
         default: Option<Primitive>,
@@ -1019,7 +1027,7 @@ impl FormUtils {
         let combo = ComboBoxText::with_entry();
 
         for (_, el) in items.iter().enumerate() {
-            combo.append_text(&el);
+            combo.append_text(el);
         }
 
         combo.set_active(Some(Self::get_menu_default(items, default)));

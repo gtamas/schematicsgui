@@ -21,8 +21,9 @@ impl Param {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum InputType {
+    #[default]
     Text,
     TextArea,
     ColorButton,
@@ -87,18 +88,18 @@ impl CommandBuilder {
 
     fn escape_str(&self, value: &str) -> String {
         if self.options.escape_multiline_text {
-            return format!("`{}`", value.replace(&['\r', '\n'], "\\\n"));
+            return format!("`{}`", value.replace(['\r', '\n'], "\\\n"));
         }
 
-        value.replace(&['\r', '\n'], " ")
+        value.replace(['\r', '\n'], " ")
     }
 
     fn escape_path(&self, path: &str) -> String {
-        format!("\"{}\"", path.replace(&['"'], "\""))
+        format!("\"{}\"", path.replace(['"'], "\\\""))
     }
 
     fn get_param_name(&self, param: &Param) -> String {
-        if self.options.pass_boolean == false {
+        if !self.options.pass_boolean {
             if param.value == "true" {
                 return param.name.to_case(self.options.option_case);
             } else if param.value == "false" {
@@ -111,12 +112,12 @@ impl CommandBuilder {
     fn get_param_value(&self, param: &Param) -> String {
         match param.kind {
             InputType::Checkbox | InputType::Switch | InputType::Toggle => {
-                if self.options.pass_boolean == false {
+                if !self.options.pass_boolean {
                     return String::default();
                 }
-                return param.value.clone();
+                param.value.clone()
             }
-            InputType::TextArea => return self.escape_str(&param.value),
+            InputType::TextArea => self.escape_str(&param.value),
             InputType::File | InputType::Dir => {
                 if self.options.quote_paths {
                     return self.escape_path(&param.value);
@@ -131,7 +132,7 @@ impl CommandBuilder {
                 {
                     return String::default();
                 }
-                return param.value.clone();
+                param.value.clone()
             }
         }
     }
@@ -176,7 +177,7 @@ impl CommandBuilder {
             .iter()
             .filter(|m| {
                 self.options.configurable.is_none()
-                    || (self.options.configurable.clone().unwrap() == m.name && m.value == "true")
+                    || (self.options.configurable.clone().unwrap() == m.name)
             })
             .map(|m| Param {
                 name: m.name.clone(),
@@ -206,26 +207,232 @@ impl CommandBuilder {
     }
 }
 
-// {
-//                     if m.kind == InputType::TextArea {
-//                         self.escape_str(&m.value)
-//                     } else if self.options.quote_paths
-//                         && (m.kind == InputType::File || m.kind == InputType::Dir)
-//                     {
-//                         self.escape_path(&m.value)
-//                     } else if self.options.configurable.is_some()
-//                         && self.options.configurable.clone().unwrap() == m.name
-//                         && m.value == "true"
-//                     {
-//                       String::default()
-//                     } else if m.kind == InputType::Checkbox || m.kind == InputType::Switch || m.kind == InputType::Toggle {
-//                       if self.options.pass_boolean == false {
-//                         String::default()
-//                       } else {
-//                         m.value.clone()
-//                       }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//                     } else {
-//                         m.value.clone()
-//                     }
-//                 }
+    fn get_param(name: &str, value: Option<&str>, kind: Option<InputType>) -> Param {
+        Param {
+            name: name.to_string(),
+            value: value.unwrap_or_default().to_string(),
+            kind: kind.unwrap_or_default(),
+        }
+    }
+
+    fn get_params() -> Vec<Param> {
+        vec![
+            get_param("foo", Some("1"), None),
+            get_param("bar", Some("foo"), None),
+        ]
+    }
+
+    #[test]
+    fn escape_str_single() {
+        let builder = CommandBuilder::new(None);
+        let raw = "foo\n\rbar";
+        let escaped = builder.escape_str(raw);
+
+        assert_eq!(escaped, "foo  bar")
+    }
+
+    #[test]
+    fn escape_str_multi() {
+        let builder = CommandBuilder::new(Some(CommandBuilderOptions {
+            escape_multiline_text: true,
+            ..Default::default()
+        }));
+        let raw = "foo
+        bar
+        baz";
+        let escaped = builder.escape_str(raw);
+
+        assert_eq!(
+            escaped,
+            "`foo\\
+        bar\\
+        baz`"
+        )
+    }
+
+    #[test]
+    fn escape_path() {
+        let builder = CommandBuilder::new(None);
+        let path = "/foo/bar/some/\"foo bar\"";
+        let escaped = builder.escape_path(path);
+
+        assert_eq!(escaped, "\"/foo/bar/some/\\\"foo bar\\\"\"")
+    }
+
+    #[test]
+    fn get_param_name_no_pass_boolean_value_true() {
+        let builder = CommandBuilder::new(Some(CommandBuilderOptions {
+            pass_boolean: false,
+            ..Default::default()
+        }));
+
+        let param = get_param("foo_bar", Some("true"), None);
+
+        let name = builder.get_param_name(&param);
+
+        assert_eq!(name, "fooBar")
+    }
+
+    #[test]
+    fn get_param_name_no_pass_boolean_value_false() {
+        let builder = CommandBuilder::new(Some(CommandBuilderOptions {
+            pass_boolean: false,
+            ..Default::default()
+        }));
+
+        let param = get_param("foo_bar", Some("false"), None);
+
+        let name = builder.get_param_name(&param);
+
+        assert_eq!(name, "noFooBar")
+    }
+
+    #[test]
+    fn get_param_name_pass_boolean_value_any() {
+        let builder: CommandBuilder = CommandBuilder::new(None);
+
+        let param = get_param("foo_bar", None, None);
+
+        let name = builder.get_param_name(&param);
+
+        assert_eq!(name, "fooBar")
+    }
+
+    #[test]
+    fn set_configurable() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+
+        builder.set_configurable("some".to_string());
+
+        assert_eq!(builder.options.configurable.unwrap(), "some".to_string())
+    }
+
+    #[test]
+    fn set_executable() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let executable = "some".to_string();
+
+        builder.set_executable(executable.clone());
+
+        assert_eq!(builder.executable, executable)
+    }
+
+    #[test]
+    fn get_executable() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let executable = "some".to_string();
+
+        builder.set_executable(executable.clone());
+
+        assert_eq!(builder.get_executable(), executable)
+    }
+
+    #[test]
+    fn set_command() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let command = "some".to_string();
+
+        builder.set_command(command.clone());
+
+        assert_eq!(builder.command, command)
+    }
+
+    #[test]
+    fn get_command() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let command = "some".to_string();
+
+        builder.set_command(command.clone());
+
+        assert_eq!(builder.get_command(), command)
+    }
+
+    #[test]
+    fn set_params() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let param = Param::default();
+        let params = vec![param.clone()];
+
+        builder.set_params(params.clone());
+
+        assert_eq!(builder.params, params);
+    }
+
+    #[test]
+    fn add() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let param = Param::default();
+
+        builder.add(param.clone());
+
+        assert_eq!(builder.params.len(), 1);
+        assert_eq!(builder.params[0], param)
+    }
+
+    #[test]
+    fn to_toml() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let params = get_params();
+
+        builder.set_params(params);
+
+        assert_eq!(builder.to_toml(), "foo='1'\nbar='foo'");
+    }
+
+    #[test]
+    fn to_string_no_separator() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let params = get_params();
+
+        builder.set_params(params);
+
+        assert_eq!(builder.to_string(None), "--foo 1 --bar foo");
+    }
+
+    #[test]
+    fn to_string_separator() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let params = get_params();
+
+        builder.set_params(params);
+
+        assert_eq!(
+            builder.to_string(Some(":".to_string())),
+            "--foo:1 --bar:foo"
+        );
+    }
+
+    #[test]
+    fn to_params_no_configurable() {
+        let mut builder: CommandBuilder = CommandBuilder::new(None);
+        let params = get_params();
+
+        builder.set_params(params.clone());
+
+        assert_eq!(builder.to_params(), params);
+    }
+
+     #[test]
+    fn to_params_configurable() {
+        let mut builder: CommandBuilder = CommandBuilder::new(Some(CommandBuilderOptions {
+          configurable: Some("config".to_string()),
+          ..Default::default()
+        }));
+        let mut params = get_params();
+        params.push(Param {
+          name: "config".to_string(),
+          value: "true".to_string(),
+          ..Default::default()
+        });
+
+        builder.set_params(params.clone());
+        let result = builder.to_params();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, params[2].name);
+    }
+}

@@ -29,7 +29,7 @@ impl XWidgetBuilder {
             if c.r#type == ColorEntryType::Button {
                 return self.get_color_button(c.clone()).upcast();
             }
-            return self.get_color_input(&self.field, c.clone()).upcast();
+            self.get_color_input(&self.field, c.clone()).upcast()
         } else if let XWidgetType::Date(c) = &self.xwidget.options {
             if c.r#type == DateEntryType::Date {
                 return self.get_date_input(c.clone()).upcast();
@@ -79,9 +79,13 @@ impl XWidgetBuilder {
         let empty: Vec<String> = vec![];
         if self.prop.r#type == "string" && self.prop.r#enum.is_some() {
             return self.prop.r#enum.as_ref().unwrap().clone();
-        } else if self.prop.r#type == "array" && self.prop.items.is_some() {
-            return self.prop.items.as_ref().unwrap().r#enum.clone();
+        } else if (self.prop.r#type == "array" || self.prop.r#type == "string")
+            && self.prop.x_prompt.is_some()
+            && self.prop.x_prompt.as_ref().unwrap().has_items()
+        {
+            return self.prop.x_prompt.as_ref().unwrap().get_items();
         }
+
         empty
     }
 

@@ -27,14 +27,13 @@ impl Schema {
         if v.is_some() {
             let prop: SchemaProp = serde_json::from_value(v.unwrap().clone()).unwrap();
             return Some(prop);
-        } else {
-            return None;
         }
+        None
     }
 }
 
 #[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SchemaProp {
     pub r#type: String,
     pub description: Option<String>,
@@ -47,22 +46,6 @@ pub struct SchemaProp {
     pub x_prompt: Option<StringOrPrompt>,
     #[serde(alias = "x-widget")]
     pub x_widget: Option<XWidget>,
-}
-
-impl Default for SchemaProp {
-    fn default() -> Self {
-        SchemaProp {
-            r#type: String::default(),
-            description: None,
-            default: None,
-            alias: None,
-            r#enum: None,
-            items: None,
-            format: None,
-            x_prompt: None,
-            x_widget: None,
-        }
-    }
 }
 
 #[serde_as]
@@ -133,7 +116,7 @@ impl Default for FsEntry {
             multiple: false,
             default_name: None,
             is_dir: false,
-            title: Some(String::from("Choose a file")),
+            title: None,
         }
     }
 }
@@ -149,14 +132,14 @@ pub struct DateEntry {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimeInput(pub i32, pub i32, pub i32);
 
-impl Default for TimeInput {
-    fn default() -> Self {
-        TimeInput(0, 0, 0)
-    }
-}
+// impl Default for TimeInput {
+//     fn default() -> Self {
+//         TimeInput(0, 0, 0)
+//     }
+// }
 
 impl Default for DateEntry {
     fn default() -> Self {
@@ -167,18 +150,13 @@ impl Default for DateEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DateEntryType {
+    #[default]
     Date,
     Time,
     DateTime,
-}
-
-impl Default for DateEntryType {
-    fn default() -> Self {
-        DateEntryType::Date
-    }
 }
 
 #[serde_as]
@@ -206,31 +184,21 @@ impl Default for ColorEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ColorEntryFormat {
     Hex,
+    #[default]
     RGB,
     HSL,
 }
 
-impl Default for ColorEntryFormat {
-    fn default() -> Self {
-        ColorEntryFormat::RGB
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ColorEntryType {
     Button,
+    #[default]
     Input,
-}
-
-impl Default for ColorEntryType {
-    fn default() -> Self {
-        ColorEntryType::Input
-    }
 }
 
 #[serde_as]
@@ -252,18 +220,13 @@ impl Default for ChoiceEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ChoiceType {
+    #[default]
     Checkbox,
     Switch,
     Toggle,
-}
-
-impl Default for ChoiceType {
-    fn default() -> Self {
-        ChoiceType::Checkbox
-    }
 }
 
 #[serde_as]
@@ -291,9 +254,10 @@ impl Default for MenuEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum MenuType {
+    #[default]
     DropDown,
     Combobox,
     Multiselect,
@@ -301,28 +265,17 @@ pub enum MenuType {
     Toggle,
 }
 
-impl Default for MenuType {
-    fn default() -> Self {
-        MenuType::DropDown
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum OrientationType {
     Horizontal,
+    #[default]
     Vertical,
 }
 
-impl Default for OrientationType {
-    fn default() -> Self {
-        OrientationType::Vertical
-    }
-}
-
-impl Into<Orientation> for OrientationType {
-    fn into(self) -> Orientation {
-        match self {
+impl From<OrientationType> for Orientation {
+    fn from(val: OrientationType) -> Self {
+        match val {
             OrientationType::Horizontal => Orientation::Horizontal,
             OrientationType::Vertical => Orientation::Vertical,
         }
@@ -381,45 +334,36 @@ impl Default for TextEntry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum IconPositionType {
     Start,
+    #[default]
     None,
     End,
 }
 
-impl Default for IconPositionType {
-    fn default() -> Self {
-        IconPositionType::None
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TextAlignmentType {
+    #[default]
     Left,
     Right,
 }
 
-impl Into<f32> for TextAlignmentType {
-    fn into(self) -> f32 {
-        match self {
+impl From<TextAlignmentType> for f32 {
+    fn from(val: TextAlignmentType) -> Self {
+        match val {
             TextAlignmentType::Left => 0.0,
             TextAlignmentType::Right => 1.0,
         }
     }
 }
 
-impl Default for TextAlignmentType {
-    fn default() -> Self {
-        TextAlignmentType::Left
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum PurposeType {
+    #[default]
     FreeForm,
     Alpha,
     Digits,
@@ -431,9 +375,9 @@ pub enum PurposeType {
     Terminal,
 }
 
-impl Into<InputPurpose> for PurposeType {
-    fn into(self) -> InputPurpose {
-        match self {
+impl From<PurposeType> for InputPurpose {
+    fn from(val: PurposeType) -> Self {
+        match val {
             PurposeType::Digits => InputPurpose::Digits,
             PurposeType::Alpha => InputPurpose::Alpha,
             PurposeType::FreeForm => InputPurpose::FreeForm,
@@ -447,13 +391,7 @@ impl Into<InputPurpose> for PurposeType {
     }
 }
 
-impl Default for PurposeType {
-    fn default() -> Self {
-        PurposeType::FreeForm
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HintType {
     Lowercase,
@@ -466,18 +404,13 @@ pub enum HintType {
     Spellcheck,
     NoSpellcheck,
     WordCompletion,
+    #[default]
     None,
 }
 
-impl Default for HintType {
-    fn default() -> Self {
-        HintType::None
-    }
-}
-
-impl Into<InputHints> for HintType {
-    fn into(self) -> InputHints {
-        match self {
+impl From<HintType> for InputHints {
+    fn from(val: HintType) -> Self {
+        match val {
             HintType::Lowercase => InputHints::LOWERCASE,
             HintType::UppercaseChars => InputHints::UPPERCASE_CHARS,
             HintType::UppercaseWords => InputHints::UPPERCASE_WORDS,
@@ -493,25 +426,20 @@ impl Into<InputHints> for HintType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum JustificationType {
     Left,
     Right,
     Center,
+    #[default]
     Fill,
     None,
 }
 
-impl Default for JustificationType {
-    fn default() -> Self {
-        JustificationType::Fill
-    }
-}
-
-impl Into<Justification> for JustificationType {
-    fn into(self) -> Justification {
-        match self {
+impl From<JustificationType> for Justification {
+    fn from(val: JustificationType) -> Self {
+        match val {
             JustificationType::Center => Justification::Center,
             JustificationType::Left => Justification::Left,
             JustificationType::Right => Justification::Right,
@@ -586,9 +514,10 @@ pub struct MarkData {
     pub text: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CurrentValuePosType {
+    #[default]
     Top,
     Bottom,
     Right,
@@ -596,15 +525,9 @@ pub enum CurrentValuePosType {
     None,
 }
 
-impl Default for CurrentValuePosType {
-    fn default() -> Self {
-        CurrentValuePosType::Top
-    }
-}
-
-impl Into<PositionType> for CurrentValuePosType {
-    fn into(self) -> PositionType {
-        match self {
+impl From<CurrentValuePosType> for PositionType {
+    fn from(val: CurrentValuePosType) -> Self {
+        match val {
             CurrentValuePosType::Bottom => PositionType::Bottom,
             CurrentValuePosType::Top => PositionType::Top,
             CurrentValuePosType::Left => PositionType::Left,
@@ -614,17 +537,12 @@ impl Into<PositionType> for CurrentValuePosType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum NumericType {
+    #[default]
     Input,
     Slider,
-}
-
-impl Default for NumericType {
-    fn default() -> Self {
-        NumericType::Input
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -641,27 +559,27 @@ impl Default for IntOrFloat {
     }
 }
 
-impl Into<f64> for IntOrFloat {
-    fn into(self) -> f64 {
-        match self {
+impl From<IntOrFloat> for f64 {
+    fn from(val: IntOrFloat) -> Self {
+        match val {
             IntOrFloat::Float(f) => f,
             IntOrFloat::Int(i) => i as f64,
         }
     }
 }
 
-impl Into<i32> for IntOrFloat {
-    fn into(self) -> i32 {
-        match self {
+impl From<IntOrFloat> for i32 {
+    fn from(val: IntOrFloat) -> Self {
+        match val {
             IntOrFloat::Float(f) => f as i32,
             IntOrFloat::Int(i) => i,
         }
     }
 }
 
-impl Into<u32> for IntOrFloat {
-    fn into(self) -> u32 {
-        match self {
+impl From<IntOrFloat> for u32 {
+    fn from(val: IntOrFloat) -> Self {
+        match val {
             IntOrFloat::Float(f) => f as u32,
             IntOrFloat::Int(i) => i as u32,
         }
@@ -678,17 +596,12 @@ impl fmt::Display for IntOrFloat {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum NumericValueType {
     Int,
+    #[default]
     Float,
-}
-
-impl Default for NumericValueType {
-    fn default() -> Self {
-        NumericValueType::Float
-    }
 }
 
 #[serde_as]
@@ -754,12 +667,12 @@ impl fmt::Display for Primitive {
     }
 }
 
-impl Into<TimeInput> for Primitive {
-    fn into(self) -> TimeInput {
-        match self {
+impl From<Primitive> for TimeInput {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Str(s) => {
                 let time: Vec<i32> = s
-                    .split(":")
+                    .split(':')
                     .map(|s| s.parse::<i32>().unwrap_or_default())
                     .collect();
 
@@ -773,9 +686,9 @@ impl Into<TimeInput> for Primitive {
     }
 }
 
-impl Into<String> for Primitive {
-    fn into(self) -> String {
-        match self {
+impl From<Primitive> for String {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Str(s) => s,
             Primitive::Float(f) => f.to_string(),
             Primitive::Int(i) => i.to_string(),
@@ -784,18 +697,18 @@ impl Into<String> for Primitive {
     }
 }
 
-impl Into<bool> for Primitive {
-    fn into(self) -> bool {
-        match self {
+impl From<Primitive> for bool {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Bool(b) => b,
             _ => false,
         }
     }
 }
 
-impl Into<f64> for Primitive {
-    fn into(self) -> f64 {
-        match self {
+impl From<Primitive> for f64 {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Float(f) => f,
             Primitive::Int(i) => i as f64,
             _ => 0.0,
@@ -803,9 +716,9 @@ impl Into<f64> for Primitive {
     }
 }
 
-impl Into<i32> for Primitive {
-    fn into(self) -> i32 {
-        match self {
+impl From<Primitive> for i32 {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Int(i) => i,
             Primitive::Float(f) => f as i32,
             _ => 0,
@@ -813,9 +726,9 @@ impl Into<i32> for Primitive {
     }
 }
 
-impl Into<u32> for Primitive {
-    fn into(self) -> u32 {
-        match self {
+impl From<Primitive> for u32 {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Int(i) => i as u32,
             Primitive::Float(f) => f as u32,
             _ => 0,
@@ -823,9 +736,9 @@ impl Into<u32> for Primitive {
     }
 }
 
-impl Into<DateTime> for Primitive {
-    fn into(self) -> DateTime {
-        match self {
+impl From<Primitive> for DateTime {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::Str(d) => DateTime::from_iso8601(&d, Some(&TimeZone::utc()))
                 .unwrap_or(DateTime::now_utc().unwrap()),
             _ => DateTime::now_utc().unwrap(),
@@ -833,9 +746,9 @@ impl Into<DateTime> for Primitive {
     }
 }
 
-impl Into<Vec<String>> for Primitive {
-    fn into(self) -> Vec<String> {
-        match self {
+impl From<Primitive> for Vec<String> {
+    fn from(val: Primitive) -> Self {
+        match val {
             Primitive::StringVec(i) => i,
             _ => vec![],
         }
@@ -886,9 +799,9 @@ pub enum VecOrString {
     ItemVec(Vec<SchemaItem>),
 }
 
-impl Into<Vec<String>> for VecOrString {
-    fn into(self) -> Vec<String> {
-        match self {
+impl From<VecOrString> for Vec<String> {
+    fn from(val: VecOrString) -> Self {
+        match val {
             VecOrString::Str(s) => vec![s],
             VecOrString::StringVec(v) => v,
             VecOrString::ItemVec(v) => v.into_iter().map(|i| i.value.to_string()).collect(),

@@ -16,21 +16,33 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 
+struct Env {
+    pub name: String,
+    pub value: String,
+}
+
 async fn run_schematic(
     executor: String,
     command: String,
     cwd: String,
     params: Vec<Param>,
+    env: Option<Vec<Env>>,
 ) -> Child {
     let mut cmd = Command::new(executor);
+
+    let vars = env.unwrap_or_default();
+
+    for var in vars {
+        cmd.env(var.name, var.value);
+    }
 
     cmd.current_dir(cwd);
     cmd.arg(command);
 
     for param in params {
         cmd.arg(format!("--{}", param.name));
-        if param.value.len() > 0 {
-            cmd.arg(format!("{}", param.value));
+        if !param.value.is_empty() {
+            cmd.arg(param.value);
         }
     }
 
@@ -65,7 +77,7 @@ pub struct SchematicExecutorModel {
 }
 
 impl SchematicExecutorModel {
-    fn reset_view(&mut self) -> () {
+    fn reset_view(&mut self) {
         self.executing = false;
         self.submitted = false;
         self.output_buf.set_text(&String::default());
@@ -78,7 +90,7 @@ impl SchematicExecutorModel {
         let cwd = self.cwd_buf.text().to_string();
         let path = Path::new(&cwd);
 
-        if cwd.len() == 0 {
+        if cwd.is_empty() {
             self.print_error("The cwd field is mandatory!");
             return false;
         } else if !path.exists() || !path.is_dir() {
@@ -111,9 +123,7 @@ impl SchematicExecutorModel {
             let out_reader = BufReader::new(out);
             let out_lines = out_reader.lines();
             for line in out_lines {
-                let str =
-                    String::from_utf8(strip_ansi_escapes::strip(&String::from(line.unwrap())))
-                        .unwrap();
+                let str = String::from_utf8(strip_ansi_escapes::strip(&line.unwrap())).unwrap();
                 if !is_error {
                     sender.input(SchematicExecutorInput::SetOutput(str));
                 } else {
@@ -451,7 +461,7 @@ impl Component for SchematicExecutorModel {
                 self.builder
                     .set_executable(self.settings.clone().unwrap().runner_location);
 
-                self.command_buf.set_text(&format!(
+                self.command_buf.set_text(format!(
                     "{} {} {}",
                     self.builder.get_executable(),
                     self.builder.get_command(),
@@ -486,9 +496,19 @@ impl Component for SchematicExecutorModel {
 
                 let command = self.builder.get_command();
                 let executor = self.settings.as_ref().unwrap().runner_location.clone();
+                let node = self.settings.as_ref().unwrap().node_binary.clone();
+                let path = Path::new(&node)
+                    .parent()
+                    .unwrap_or(Path::new("/"))
+                    .to_str()
+                    .unwrap();
+                let env: Vec<Env> = vec![Env {
+                    name: String::from("PATH"),
+                    value: String::from(path),
+                }];
 
                 sender.oneshot_command(async move {
-                    CommandMsg::Data(run_schematic(executor, command, cwd, params).await)
+                    CommandMsg::Data(run_schematic(executor, command, cwd, params, Some(env)).await)
                 });
             }
             SchematicExecutorInput::CopyToClipboard => {

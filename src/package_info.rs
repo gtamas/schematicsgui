@@ -74,7 +74,7 @@ pub enum AuthorType {
 impl PackageInfoModel {
     fn read_package_json(&self, path: String) -> PartialPackageJsonData {
         let json_str = &Collection::read_str(&path);
-        let package_json: PartialPackageJsonData = serde_json::from_str(&json_str).unwrap();
+        let package_json: PartialPackageJsonData = serde_json::from_str(json_str).unwrap();
         package_json
     }
 

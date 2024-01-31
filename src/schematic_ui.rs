@@ -54,7 +54,7 @@ impl WidgetUtils for SchematicUiModel {}
 impl_validation!(SchematicUiModel);
 
 impl SchematicUiModel {
-    fn reset_view(&mut self) -> () {
+    fn reset_view(&mut self) {
         self.set_configurable(None);
         self.set_cwd(None);
         self.set_file(None);
@@ -95,7 +95,7 @@ impl SchematicUiModel {
         }
     }
 
-    fn load_values(&self, widgets: &mut SchematicUiModelWidgets, data_id: usize) -> () {
+    fn load_values(&self, widgets: &mut SchematicUiModelWidgets, data_id: usize) {
         let mut w = widgets
             .frame
             .child()
@@ -153,7 +153,7 @@ impl SchematicUiModel {
                     command.set_configurable(p.name.clone());
                 }
 
-                if p.name.len() > 0 {
+                if !p.name.is_empty() {
                     command.add(p);
                 }
             }
@@ -221,7 +221,7 @@ impl SchematicUiModel {
                                 DialogFlags::all(),
                                 gtk::MessageType::Error,
                                 gtk::ButtonsType::YesNo,
-                                format!("{}", "Oops.. an error has occured!"),
+                                "Oops.. an error has occured!",
                             );
                             dialog.set_secondary_text(Some(&format!(
                                 "{}\n{}",
@@ -246,7 +246,7 @@ pub struct SchematicUiInputParams {
     pub package_name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ConfigurableSchematicOptions {
     pub config_option: String,
     pub config_file: String,
@@ -257,15 +257,6 @@ impl ConfigurableSchematicOptions {
         ConfigurableSchematicOptions {
             config_option,
             config_file,
-        }
-    }
-}
-
-impl Default for ConfigurableSchematicOptions {
-    fn default() -> Self {
-        ConfigurableSchematicOptions {
-            config_option: String::default(),
-            config_file: String::default(),
         }
     }
 }
@@ -330,7 +321,7 @@ impl Component for SchematicUiModel {
               set_css_classes: &["label", "success"],
               set_halign: gtk::Align::Center,
               #[watch]
-              set_label: &format!("{}", &model.message)
+              set_label: &(model.message).to_string()
             },
           },
           gtk::ScrolledWindow {
@@ -347,7 +338,7 @@ impl Component for SchematicUiModel {
                   set_hexpand: true,
                   set_css_classes: &["ui_container"],
                   #[track = "model.changed(SchematicUiModel::json())"]
-                  set_child: Some(&model.build_form(&frame, &model.json).unwrap())
+                  set_child: Some(&model.build_form(frame.as_ref(), &model.json).unwrap())
                 },
                 gtk::Revealer {
                     set_transition_type: gtk::RevealerTransitionType::SlideLeft,
@@ -438,9 +429,7 @@ impl Component for SchematicUiModel {
         let config = ConfigEditorDialogModel::builder()
             .transient_for(root)
             .launch(true)
-            .forward(sender.input_sender(), |msg| match msg {
-                _ => SchematicUiInput::Submit,
-            });
+            .forward(sender.input_sender(), |_| SchematicUiInput::Submit);
 
         let browser =
             ProfileBrowserModel::builder()
@@ -494,8 +483,8 @@ impl Component for SchematicUiModel {
                 self.reset_view();
 
                 if schema.configurable.is_some() {
-                    let config_option = schema.configurable.clone().unwrap_or(String::default());
-                    let path_prop = schema.get_property("path").unwrap_or(SchemaProp::default());
+                    let config_option = schema.configurable.clone().unwrap_or_default();
+                    let path_prop = schema.get_property("path").unwrap_or_default();
                     let configurable = ConfigurableSchematicOptions::new(
                         config_option,
                         path_prop

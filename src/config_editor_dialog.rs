@@ -52,8 +52,8 @@ impl ConfigEditorDialogModel {
             }
         };
 
-        if content.len() == 0 {
-            self.print_error(&"The JSON content is mandatory!");
+        if content.is_empty() {
+            self.print_error("The JSON content is mandatory!");
             return false;
         }
 

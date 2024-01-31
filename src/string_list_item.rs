@@ -16,9 +16,9 @@ impl StringListItem {
     }
 }
 
-impl Into<f32> for StringListItem {
-    fn into(self) -> f32 {
-        self.value.parse().unwrap_or(0.0)
+impl From<StringListItem> for f32 {
+    fn from(val: StringListItem) -> Self {
+        val.value.parse().unwrap_or(0.0)
     }
 }
 

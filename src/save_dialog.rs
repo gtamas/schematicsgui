@@ -107,7 +107,7 @@ impl SaveDialogModel {
         let path = PathBuf::from(file.clone());
 
         if file.len() == 0 {
-            self.print_error(&"The 'file' field is mandatory!");
+            self.print_error("The 'file' field is mandatory!");
             return false;
         } else if path.extension().unwrap_or_default() != "toml" {
             self.print_error(&format!("The '{}' is not a TOML file!", file));

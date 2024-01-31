@@ -94,7 +94,7 @@ impl SimpleComponent for AppModel {
                       set_hexpand_set: true,
                       gtk::Label {
                         set_css_classes: &["left_header_label"],
-                        set_label: &"Schematics",
+                        set_label: "Schematics",
                         set_hexpand: true,
                         set_xalign: 0.0,
                       },
@@ -159,12 +159,9 @@ impl SimpleComponent for AppModel {
                     }
                 });
 
-        let tabs =
-            SchematicsDetailsModel::builder()
-                .launch(true)
-                .forward(sender.input_sender(), |msg| match msg {
-                    _ => AppMsg::Close,
-                });
+        let tabs = SchematicsDetailsModel::builder()
+            .launch(true)
+            .forward(sender.input_sender(), |_| AppMsg::Close);
 
         let model = AppModel {
             mode: params,

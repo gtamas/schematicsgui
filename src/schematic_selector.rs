@@ -23,7 +23,7 @@ impl SchematicSelectorModel {
         if settings_util.exists() {
             collection_utils = Collection::new(settings.clone());
             collection_utils.init();
-            return collection_utils.list_schematic_names();
+            collection_utils.list_schematic_names()
         } else {
             vec![String::default()]
         }

@@ -56,7 +56,7 @@ pub enum SchematicsDetailsInput {
     Show(Option<SettingsData>),
     ShowSchematic(String),
     ShowExecutor(Vec<Param>),
-    SetPackage(PartialPackageJsonData),
+    SetPackage(Box<PartialPackageJsonData>),
     BacktToUi,
     CwdChanged(String),
 }
@@ -99,7 +99,9 @@ impl SimpleComponent for SchematicsDetailsModel {
         let info = PackageInfoModel::builder()
             .launch(true)
             .forward(sender.input_sender(), |msg| match msg {
-                PackageInfoOutput::PackageData(pkg) => SchematicsDetailsInput::SetPackage(pkg),
+                PackageInfoOutput::PackageData(pkg) => {
+                    SchematicsDetailsInput::SetPackage(Box::new(pkg))
+                }
             });
 
         let schema_view = SchemaViewModel::builder().launch(true).detach();
@@ -187,7 +189,7 @@ impl SimpleComponent for SchematicsDetailsModel {
                     .unwrap();
             }
             SchematicsDetailsInput::SetPackage(data) => {
-                self.package = Some(data);
+                self.package = Some(*data);
             }
             SchematicsDetailsInput::ShowExecutor(params) => {
                 self.executor

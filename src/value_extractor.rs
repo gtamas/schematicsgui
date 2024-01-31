@@ -167,13 +167,11 @@ impl<'l> ValueExtractor<'l> {
     }
 
     fn get_entry_value(&self, entry: Option<Widget>) -> String {
-        let bf: EntryBuffer;
-
-        if entry.is_some() {
-            bf = entry.unwrap().clone().downcast::<Entry>().unwrap().buffer();
+        let bf: EntryBuffer = if let Some(entry_value) = entry {
+            entry_value.clone().downcast::<Entry>().unwrap().buffer()
         } else {
-            bf = self.widget.clone().downcast::<Entry>().unwrap().buffer();
-        }
+            self.widget.clone().downcast::<Entry>().unwrap().buffer()
+        };
 
         bf.text().to_string()
     }

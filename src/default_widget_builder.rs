@@ -41,7 +41,7 @@ impl DefaultWidgetBuilder {
                     return self.get_date_input(DateEntry::default()).upcast();
                 }
             }
-            return self.get_text_input(TextEntry::default()).upcast();
+            self.get_text_input(TextEntry::default()).upcast()
         } else if self.prop.r#type == "boolean" {
             return self.get_switch_input(ChoiceEntry::default()).upcast();
         } else if self.prop.r#type == "number" {

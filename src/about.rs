@@ -20,13 +20,13 @@ impl AppAboutDialog {
         const WEB: &str = env!("CARGO_PKG_HOMEPAGE");
 
         let mut authors: Vec<&str> = vec![];
-        let author_iter = AUTHORS.split(",").into_iter();
+        let author_iter = AUTHORS.split(',');
 
         for author in author_iter {
             authors.push(author);
         }
 
-        let file = gio::File::for_path(PathBuf::from("./resources/logo.svg"));
+        let file = gio::File::for_path(PathBuf::from("resources/logo.svg"));
 
         let img = match gdk::Texture::from_file(&file) {
             Ok(t) => t,
@@ -35,11 +35,7 @@ impl AppAboutDialog {
 
         dialog.set_logo(Some(&img));
         dialog.set_authors(&authors);
-        dialog.set_copyright(Some(&format!(
-            "Copyright {} by {}",
-            now.year().to_string(),
-            AUTHORS
-        )));
+        dialog.set_copyright(Some(&format!("Copyright {} by {}", now.year(), AUTHORS)));
         dialog.set_version(Some(VERSION));
         dialog.set_license_type(gtk::License::MitX11);
         dialog.set_website(Some(WEB));

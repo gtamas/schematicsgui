@@ -70,8 +70,8 @@ impl ProfileBrowserModel {
     }
 
     pub fn get_loaded_profile_path(&self) -> PathBuf {
-        let file = self.file.clone().unwrap_or(String::default());
-        self.get_profile_dir().join(&file)
+        let file = self.file.clone().unwrap_or_default();
+        self.get_profile_dir().join(file)
     }
 
     pub fn get_loaded_profile_file_as_option(&self) -> Option<String> {
@@ -84,7 +84,7 @@ impl ProfileBrowserModel {
     }
 
     pub fn get_loaded_profile_data(&self, path: &PathBuf) -> Map<String, Value> {
-        match match fs::read_to_string(&path) {
+        match match fs::read_to_string(path) {
             Ok(contents) => contents,
             Err(e) => panic!("Could not read file! {}", e),
         }
@@ -123,21 +123,21 @@ impl ProfileBrowserModel {
 
     fn load_profiles(&mut self) -> Vec<ProfileDataMenuItem> {
         let mut result: Vec<ProfileDataMenuItem> = vec![];
-        let dir = fs::read_dir(&self.get_profile_dir());
+        let dir = fs::read_dir(self.get_profile_dir());
 
         for entry in dir.unwrap() {
             let entry = entry.unwrap();
             let path = entry.path();
 
-            if path.is_file() && path.extension().unwrap_or(&OsStr::new("")) == "toml" {
+            if path.is_file() && path.extension().unwrap_or(OsStr::new("")) == "toml" {
                 let profile = self.get_loaded_profile_data(&path);
 
                 let file = path.file_name().unwrap().to_str().unwrap();
                 let mut profile_name = path.file_stem().unwrap().to_str().unwrap().to_string();
                 let description = profile["meta"]["description"].as_str().unwrap_or("");
 
-                if description.len() > 0 {
-                    profile_name = format!("{} ({})", profile_name, description.to_string())
+                if !description.is_empty() {
+                    profile_name = format!("{} ({})", profile_name, description)
                 }
 
                 let profile = ProfileData::new(
@@ -151,7 +151,7 @@ impl ProfileBrowserModel {
             }
         }
         self.profiles.sort_by_cached_key(|i| i.title.clone());
-        return result;
+        result
     }
 }
 
