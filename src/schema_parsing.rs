@@ -1,3 +1,4 @@
+use regex::Regex;
 use relm4::gtk::{
     glib::{DateTime, TimeZone},
     InputHints, InputPurpose, Justification, Orientation, PositionType,
@@ -5,7 +6,9 @@ use relm4::gtk::{
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Map;
 use serde_with::{serde_as, DefaultOnError};
-use std::fmt;
+use std::{fmt, path::Path};
+
+use crate::file_utils::FileUtils;
 
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,6 +32,18 @@ impl Schema {
             return Some(prop);
         }
         None
+    }
+
+    pub fn has_directives(&self) -> bool {
+        self.properties.iter().any(|p| {
+            let obj = p.1.as_object().unwrap();
+            obj.contains_key("x-prompt")
+                && obj["x-prompt"].is_object()
+                && obj["x-prompt"]["items"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .starts_with('$')
+        })
     }
 }
 
@@ -769,9 +784,54 @@ pub enum StringOrPrompt {
 }
 
 impl StringOrPrompt {
+    fn has_directive(&self, directive: &str, pattern: Option<Regex>) -> bool {
+        match self {
+            StringOrPrompt::Prompt(x) => {
+                let items = x.items.clone();
+                if let Some(items_values) = items {
+                    return items_values.clone() == VecOrString::Str(directive.to_string())
+                        || (pattern.is_some()
+                            && pattern.unwrap().is_match(&String::from(items_values)));
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
     pub fn has_multiselect(&self) -> bool {
         match self {
             StringOrPrompt::Prompt(x) => x.has_multiselect(),
+            _ => false,
+        }
+    }
+
+    pub fn has_modules(&self) -> bool {
+        match self {
+            StringOrPrompt::Prompt(_x) => self.has_directive("$modules", None),
+            _ => false,
+        }
+    }
+
+    pub fn has_models(&self) -> bool {
+        match self {
+            StringOrPrompt::Prompt(_x) => self.has_directive("$models", None),
+            _ => false,
+        }
+    }
+
+    pub fn has_dirs(&self) -> bool {
+        let pattern = Regex::new(r"\$dir:([a-zA-Z0-9\/\-]+)").unwrap();
+        match self {
+            StringOrPrompt::Prompt(_x) => self.has_directive("$dir", Some(pattern)),
+            _ => false,
+        }
+    }
+
+    pub fn has_files(&self) -> bool {
+        let pattern = Regex::new(r"\$files:([a-zA-Z0-9\/\-]+)").unwrap();
+        match self {
+            StringOrPrompt::Prompt(_x) => self.has_directive("$files", Some(pattern)),
             _ => false,
         }
     }
@@ -781,6 +841,73 @@ impl StringOrPrompt {
             StringOrPrompt::Prompt(x) => x.has_items(),
             _ => false,
         }
+    }
+
+    pub fn get_items_placeholder(&self) -> Vec<String> {
+        vec!["Select current working directory!".to_string()]
+    }
+
+    pub fn get_modules(&self, dir: &str) -> Vec<String> {
+        let path = Path::new(dir).join("src");
+        let mut result: Vec<String> = FileUtils::read_fs_entries(&path, true)
+            .iter()
+            .map(|p| p.file_name().unwrap().to_str().unwrap().to_owned())
+            .collect();
+
+        result.sort();
+        result
+    }
+
+    pub fn get_dirs_or_files(&self, is_dirs: bool, cwd: &str) -> Vec<String> {
+        let dirs = &self.get_items()[0];
+        let re = Regex::new(if is_dirs {
+            r"\$dir:([a-zA-Z0-9\/\-]+)"
+        } else {
+            r"\$files:([a-zA-Z0-9\/\-]+)"
+        })
+        .unwrap()
+        .captures(dirs);
+        let subdir = if let Some(re) = re {
+            re.get(1).unwrap().as_str()
+        } else {
+            "/"
+        };
+
+        let mut path = Path::new(cwd).join(subdir);
+
+        if !path.exists() {
+            path = Path::new(cwd).to_path_buf();
+        }
+        let mut result: Vec<String> = FileUtils::read_fs_entries(&path, is_dirs)
+            .iter()
+            .map(|p| p.file_name().unwrap().to_str().unwrap().to_owned())
+            .collect();
+
+        result.sort();
+        result
+    }
+
+    pub fn get_models(&self, dir: &str) -> Vec<String> {
+        let path = Path::new(dir).join("src");
+        let mut result: Vec<String> =
+            FileUtils::read_fs_entries_recursive(&path, &Some(vec!["models"]))
+                .unwrap()
+                .iter()
+                .filter_map(|p| {
+                    let path_str = p.to_str().unwrap_or_default();
+                    if path_str.ends_with("model.ts") {
+                        return Some(
+                            path_str
+                                .replace(path.to_str().unwrap_or_default(), "")
+                                .replace("model.ts", "model"),
+                        );
+                    }
+                    None
+                })
+                .collect();
+
+        result.sort();
+        result
     }
 
     pub fn get_items(&self) -> Vec<String> {
@@ -805,6 +932,20 @@ impl From<VecOrString> for Vec<String> {
             VecOrString::Str(s) => vec![s],
             VecOrString::StringVec(v) => v,
             VecOrString::ItemVec(v) => v.into_iter().map(|i| i.value.to_string()).collect(),
+        }
+    }
+}
+
+impl From<VecOrString> for String {
+    fn from(val: VecOrString) -> Self {
+        match val {
+            VecOrString::Str(s) => s,
+            VecOrString::StringVec(v) => v.join(","),
+            VecOrString::ItemVec(v) => v
+                .into_iter()
+                .map(|i| i.value.to_string())
+                .collect::<Vec<String>>()
+                .join(","),
         }
     }
 }

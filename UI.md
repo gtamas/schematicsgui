@@ -1,5 +1,3 @@
-# About the UI
-
 <!-- vscode-markdown-toc -->
 * 1. [Default UI](#DefaultUI)
 * 2. [The x-widget property](#Thex-widgetproperty)
@@ -13,13 +11,15 @@
 	* 2.5. [dir and file](#dirandfile)
 	* 2.6. [choice](#choice)
 	* 2.7. [menu](#menu)
-		* 2.7.1. [About items](#Aboutitems)
+	* 2.8. [About items](#Aboutitems)
+		* 2.8.1. [Items special syntax](#Itemsspecialsyntax)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
 	autoSave=true
 	/vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc -->
+<!-- /vscode-markdown-toc --># About the UI
+
 
 
 ##  1. <a name='DefaultUI'></a>Default UI
@@ -258,7 +258,7 @@ multiselect | ListView
 
 All these are single selection widgets, except for `multiselect`, obviously. In case of `radio` and `toggle` you get a group with a button for each selectable option.
 
-####  2.7.1. <a name='Aboutitems'></a>About items
+###  2.8. <a name='Aboutitems'></a>About items
 
 The selectable items must be pre-defined in your schema. All syntaxes supported by Schematics should work.
 
@@ -319,3 +319,42 @@ As list, using an array of objects:
 },
 ```
 
+####  2.8.1. <a name='Itemsspecialsyntax'></a>Items special syntax 
+
+Besides the syntax supported by schematics engines, some special directives regarding items are also supported.
+The value of the `x-prompt.items` property can be one of the following:
+
+| Directive | Description |
+| ---- | ------ |
+| $modules | Items will be populated using the names of all subdirectories in current working directory.
+| $models | Items will be populated using the absolute path of all files matching the following pattern `src/**/models/*.model.ts`.
+| $dir:/some/path | Items will be populated using the names of all subdirectories under `/some/path`.
+| $files:/some/path | Items will be populated using the absolute path of all files under `/some/path`.
+
+Let's see some examples:
+
+
+```json
+ "env": {
+      "type": "string",
+      "description": "The env name",
+      "x-prompt": {
+        "message": "What is the name of the env?",
+        "type": "list",
+        "items": "$modules"
+      }
+    },
+```
+
+
+```json
+ "env": {
+      "type": "string",
+      "description": "The env name",
+      "x-prompt": {
+        "message": "What is the name of the env?",
+        "type": "list",
+        "items": "$dir:/foobar"
+      }
+    },
+```

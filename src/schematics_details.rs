@@ -55,9 +55,9 @@ impl SchematicsDetailsModel {
 pub enum SchematicsDetailsInput {
     Show(Option<SettingsData>),
     ShowSchematic(String),
-    ShowExecutor(Vec<Param>),
+    ShowExecutor(Vec<Param>, bool),
     SetPackage(Box<PartialPackageJsonData>),
-    BacktToUi,
+    BackToUi,
     CwdChanged(String),
 }
 
@@ -109,7 +109,10 @@ impl SimpleComponent for SchematicsDetailsModel {
         let schematic_ui = SchematicUiModel::builder().launch(true).forward(
             sender.input_sender(),
             |msg: SchematicUiOutput| match msg {
-                SchematicUiOutput::Params(p) => SchematicsDetailsInput::ShowExecutor(p),
+                SchematicUiOutput::Params(p, c) => SchematicsDetailsInput::ShowExecutor(p, c),
+                SchematicUiOutput::ShowExecutor => {
+                    SchematicsDetailsInput::ShowExecutor(vec![], false)
+                }
             },
         );
 
@@ -117,7 +120,7 @@ impl SimpleComponent for SchematicsDetailsModel {
             SchematicExecutorModel::builder()
                 .launch(true)
                 .forward(sender.input_sender(), |msg| match msg {
-                    SchematicExecutorOutput::BackToUi => SchematicsDetailsInput::BacktToUi,
+                    SchematicExecutorOutput::BackToUi => SchematicsDetailsInput::BackToUi,
                     SchematicExecutorOutput::CwdChanged(path) => {
                         SchematicsDetailsInput::CwdChanged(path)
                     }
@@ -166,6 +169,11 @@ impl SimpleComponent for SchematicsDetailsModel {
                     }))
                     .unwrap();
 
+                self.executor
+                    .sender()
+                    .send(SchematicExecutorInput::ClearAll)
+                    .unwrap();
+
                 self.show_ui();
                 self.schematic = schematic_name.clone();
             }
@@ -179,7 +187,7 @@ impl SimpleComponent for SchematicsDetailsModel {
 
                 self.hidden = false
             }
-            SchematicsDetailsInput::BacktToUi => {
+            SchematicsDetailsInput::BackToUi => {
                 self.show_ui();
             }
             SchematicsDetailsInput::CwdChanged(path) => {
@@ -191,16 +199,19 @@ impl SimpleComponent for SchematicsDetailsModel {
             SchematicsDetailsInput::SetPackage(data) => {
                 self.package = Some(*data);
             }
-            SchematicsDetailsInput::ShowExecutor(params) => {
-                self.executor
-                    .sender()
-                    .send(SchematicExecutorInput::Show(SchematicExecutorInputParams {
-                        params,
-                        schematic: self.schematic.clone(),
-                        settings: self.settings.as_ref().unwrap().clone(),
-                        package_name: self.package.as_ref().unwrap().name.clone(),
-                    }))
-                    .unwrap();
+            SchematicsDetailsInput::ShowExecutor(params, configurable) => {
+                if !params.is_empty() {
+                    self.executor
+                        .sender()
+                        .send(SchematicExecutorInput::Show(SchematicExecutorInputParams {
+                            params,
+                            configurable,
+                            schematic: self.schematic.clone(),
+                            settings: self.settings.as_ref().unwrap().clone(),
+                            package_name: self.package.as_ref().unwrap().name.clone(),
+                        }))
+                        .unwrap();
+                }
 
                 self.show_shell();
             }

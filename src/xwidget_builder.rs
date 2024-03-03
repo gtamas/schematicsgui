@@ -12,15 +12,17 @@ pub struct XWidgetBuilder {
     xwidget: XWidget,
     utils: FormUtils,
     field: String,
+    cwd: Option<String>,
 }
 
 impl XWidgetBuilder {
-    pub fn new(prop: &SchemaProp, field: String) -> Self {
+    pub fn new(prop: &SchemaProp, field: String, cwd: Option<String>) -> Self {
         XWidgetBuilder {
             prop: prop.clone(),
             xwidget: prop.x_widget.clone().unwrap(),
             utils: FormUtils::new(),
             field,
+            cwd,
         }
     }
 
@@ -79,11 +81,27 @@ impl XWidgetBuilder {
         let empty: Vec<String> = vec![];
         if self.prop.r#type == "string" && self.prop.r#enum.is_some() {
             return self.prop.r#enum.as_ref().unwrap().clone();
-        } else if (self.prop.r#type == "array" || self.prop.r#type == "string")
+        }
+        if (self.prop.r#type == "array" || self.prop.r#type == "string")
             && self.prop.x_prompt.is_some()
             && self.prop.x_prompt.as_ref().unwrap().has_items()
         {
-            return self.prop.x_prompt.as_ref().unwrap().get_items();
+            let prompt = self.prop.x_prompt.as_ref().unwrap();
+            if self.cwd.is_some() {
+                if prompt.has_modules() {
+                    return prompt.get_modules(self.cwd.as_ref().unwrap());
+                } else if prompt.has_models() {
+                    return prompt.get_models(self.cwd.as_ref().unwrap());
+                } else if prompt.has_dirs() {
+                    return prompt.get_dirs_or_files(true, self.cwd.as_ref().unwrap());
+                } else if prompt.has_files() {
+                    return prompt.get_dirs_or_files(false, self.cwd.as_ref().unwrap());
+                }
+            }
+            if prompt.has_modules() || prompt.has_models() || prompt.has_dirs() {
+                return prompt.get_items_placeholder();
+            }
+            return prompt.get_items();
         }
 
         empty

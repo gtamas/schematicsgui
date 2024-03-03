@@ -41,4 +41,5 @@ sourceview5 = "0.6.1"
 convert_case = "0.6.0"
 is_executable = "1.0.1"
 mockall = "0.12.1"
+regex = "1.10.3"
 

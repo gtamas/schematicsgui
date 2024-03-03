@@ -43,6 +43,7 @@ impl Collection {
     }
     fn list(&self) -> Map<String, Value> {
         let empty = Map::default();
+        // let black_list = vec!["app", "mutation", "query"];
         self.data["schematics"]
             .as_object()
             .unwrap_or(&empty)
@@ -60,6 +61,12 @@ impl Collection {
                 }
                 true
             })
+            // .filter(|a| {
+            //     if self.settings.runner == Runner::MBH && black_list.iter().any(|item| item.eq(&a.0)) {
+            //         return false
+            //     }
+            //     true
+            // })
             .collect()
     }
 
@@ -197,13 +204,16 @@ mod tests {
         let collection = get_collection();
         let result = collection.get_schematic("sc1");
 
-        assert_eq!(result, SchematicData {
-          description: String::from("sc1 desc"),
-          ..Default::default()
-        });
+        assert_eq!(
+            result,
+            SchematicData {
+                description: String::from("sc1 desc"),
+                ..Default::default()
+            }
+        );
     }
 
-     #[test]
+    #[test]
     fn get_schematic_not_found_returns_default() {
         let collection = get_collection();
         let result = collection.get_schematic("none");

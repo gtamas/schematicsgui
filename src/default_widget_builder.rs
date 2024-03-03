@@ -10,13 +10,15 @@ pub struct DefaultWidgetBuilder {
     prop: SchemaProp,
     utils: FormUtils,
     field: String,
+    cwd: Option<String>,
 }
 
 impl DefaultWidgetBuilder {
-    pub fn new(prop: &SchemaProp, field: String) -> Self {
+    pub fn new(prop: &SchemaProp, field: String, cwd: Option<String>) -> Self {
         DefaultWidgetBuilder {
             prop: prop.clone(),
             utils: FormUtils::new(),
+            cwd,
             field,
         }
     }
@@ -36,7 +38,12 @@ impl DefaultWidgetBuilder {
             } else if self.prop.format.is_some() {
                 let format = self.prop.format.as_deref().unwrap();
                 if format == "path" {
-                    return self.get_file_input(FsEntry::default()).upcast();
+                    return self
+                        .get_file_input(FsEntry {
+                            is_dir: true,
+                            ..Default::default()
+                        })
+                        .upcast();
                 } else if format == "date" {
                     return self.get_date_input(DateEntry::default()).upcast();
                 }
@@ -77,11 +84,27 @@ impl DefaultWidgetBuilder {
         let empty: Vec<String> = vec![];
         if self.prop.r#type == "string" && self.prop.r#enum.is_some() {
             return self.prop.r#enum.as_ref().unwrap().clone();
-        } else if (self.prop.r#type == "array" || self.prop.r#type == "string")
+        }
+        if (self.prop.r#type == "array" || self.prop.r#type == "string")
             && self.prop.x_prompt.is_some()
             && self.prop.x_prompt.as_ref().unwrap().has_items()
         {
-            return self.prop.x_prompt.as_ref().unwrap().get_items();
+            let prompt = self.prop.x_prompt.as_ref().unwrap();
+            if self.cwd.is_some() {
+                if prompt.has_modules() {
+                    return prompt.get_modules(self.cwd.as_ref().unwrap());
+                } else if prompt.has_models() {
+                    return prompt.get_models(self.cwd.as_ref().unwrap());
+                } else if prompt.has_dirs() {
+                    return prompt.get_dirs_or_files(true, self.cwd.as_ref().unwrap());
+                } else if prompt.has_files() {
+                    return prompt.get_dirs_or_files(false, self.cwd.as_ref().unwrap());
+                }
+            }
+            if prompt.has_modules() || prompt.has_models() || prompt.has_dirs() {
+                return prompt.get_items_placeholder();
+            }
+            return prompt.get_items();
         }
 
         empty

@@ -74,14 +74,21 @@ pub struct SchematicExecutorModel {
     message: String,
     settings: Option<SettingsData>,
     use_dry_run: bool,
+    configurable: bool,
 }
 
 impl SchematicExecutorModel {
-    fn reset_view(&mut self) {
+    fn reset_view(&mut self, all: bool) {
         self.executing = false;
         self.submitted = false;
         self.output_buf.set_text(&String::default());
         self.error_buf.set_text(&String::default());
+
+        if all {
+            self.cwd_buf.set_text(String::default());
+            self.command_buf.set_text(String::default());
+        }
+
         self.clear_error();
         self.hidden = false;
     }
@@ -142,6 +149,7 @@ pub struct SchematicExecutorInputParams {
     pub schematic: String,
     pub settings: SettingsData,
     pub package_name: String,
+    pub configurable: bool,
 }
 
 #[derive(Debug)]
@@ -149,6 +157,7 @@ pub enum SchematicExecutorInput {
     Show(SchematicExecutorInputParams),
     Execute,
     ClearOutput,
+    ClearAll,
     AllowGoogleOptions(bool),
     SetCwd(String),
     CopyToClipboard,
@@ -407,6 +416,7 @@ impl Component for SchematicExecutorModel {
             message: String::default(),
             settings: None,
             use_dry_run: false,
+            configurable: false,
         };
         let widgets = view_output!();
 
@@ -435,19 +445,17 @@ impl Component for SchematicExecutorModel {
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>, _root: &Self::Root) {
         match message {
             SchematicExecutorInput::Show(data) => {
-                self.reset_view();
+                self.reset_view(false);
 
-                let options = CommandBuilderOptions {
-                    option_case: match data.settings.runner {
-                        Runner::Google => Case::Kebab,
-                        _ => Case::Camel,
-                    },
+                let options: CommandBuilderOptions = CommandBuilderOptions {
+                    option_case: Case::Kebab,
                     escape_multiline_text: true,
                     quote_paths: true,
                     pass_boolean: false,
                     ..Default::default()
                 };
 
+                self.configurable = data.configurable;
                 self.builder = CommandBuilder::new(Some(options));
                 self.settings = Some(data.settings);
                 self.builder.set_params(data.params);
@@ -504,7 +512,7 @@ impl Component for SchematicExecutorModel {
                     .unwrap();
                 let env: Vec<Env> = vec![Env {
                     name: String::from("PATH"),
-                    value: String::from(path),
+                    value: format!("{}:{}", env!("PATH"), String::from(path)),
                 }];
 
                 sender.oneshot_command(async move {
@@ -526,6 +534,16 @@ impl Component for SchematicExecutorModel {
             }
             SchematicExecutorInput::Done => {
                 self.executing = false;
+                if self.configurable {
+                    let _ = sender
+                        .output_sender()
+                        .send(SchematicExecutorOutput::CwdChanged(
+                            self.cwd_buf.text().to_string(),
+                        ));
+                }
+            }
+            SchematicExecutorInput::ClearAll => {
+                self.reset_view(true);
             }
             SchematicExecutorInput::ClearOutput => {
                 self.output_buf.set_text("");

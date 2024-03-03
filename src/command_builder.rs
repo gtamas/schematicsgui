@@ -71,7 +71,7 @@ impl Default for CommandBuilderOptions {
             quote_paths: false,
             pass_boolean: true,
             configurable: None,
-            option_case: Case::Camel,
+            option_case: Case::Kebab,
         }
     }
 }
@@ -139,6 +139,10 @@ impl CommandBuilder {
 
     pub fn set_configurable(&mut self, value: String) {
         self.options.configurable = Some(value);
+    }
+
+    pub fn get_configurable(&self) -> String {
+        self.options.configurable.clone().unwrap_or_default()
     }
 
     pub fn set_params(&mut self, params: Vec<Param>) {
@@ -416,17 +420,17 @@ mod tests {
         assert_eq!(builder.to_params(), params);
     }
 
-     #[test]
+    #[test]
     fn to_params_configurable() {
         let mut builder: CommandBuilder = CommandBuilder::new(Some(CommandBuilderOptions {
-          configurable: Some("config".to_string()),
-          ..Default::default()
+            configurable: Some("config".to_string()),
+            ..Default::default()
         }));
         let mut params = get_params();
         params.push(Param {
-          name: "config".to_string(),
-          value: "true".to_string(),
-          ..Default::default()
+            name: "config".to_string(),
+            value: "true".to_string(),
+            ..Default::default()
         });
 
         builder.set_params(params.clone());

@@ -1,5 +1,5 @@
 use relm4::gtk::prelude::{BoxExt, ButtonExt, Cast, FrameExt, OrientableExt, WidgetExt};
-use relm4::gtk::{Align, ApplicationWindow, DialogFlags, MessageDialog};
+use relm4::gtk::{Align, ApplicationWindow, DialogFlags, Inhibit, MessageDialog};
 use relm4::{gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller};
 use std::fs;
 use std::path::PathBuf;
@@ -40,6 +40,7 @@ pub struct SchematicUiModel {
     error: bool,
     success: bool,
     message: String,
+    has_directives: bool,
     #[no_eq]
     profiles: Vec<ProfileData>,
     #[no_eq]
@@ -86,6 +87,10 @@ impl SchematicUiModel {
     fn config_exists(&self) -> bool {
         let path = self.get_config_path();
         path.exists() && path.is_file()
+    }
+
+    fn can_submit(&self) -> bool {
+        !self.has_directives || self.cwd.is_some()
     }
 
     fn get_loaded_profile_file(&self) -> String {
@@ -180,7 +185,12 @@ impl SchematicUiModel {
         return String::from(prop.description.as_ref().unwrap_or(&String::default()));
     }
 
-    fn build_form(&self, parent: &gtk::Frame, json: &serde_json::Value) -> Option<gtk::Box> {
+    fn build_form(
+        &self,
+        parent: &gtk::Frame,
+        json: &serde_json::Value,
+        cwd: Option<String>,
+    ) -> Option<gtk::Box> {
         let utils = FormUtils::new();
         let form = gtk::Box::new(relm4::gtk::Orientation::Vertical, 5);
         form.set_css_classes(&["ui"]);
@@ -199,11 +209,12 @@ impl SchematicUiModel {
                             let label_text = self.get_label_text(&prop);
                             form.append(&utils.label(&label_text, key, None, None));
                             if prop.x_widget.is_some() {
-                                let builder = XWidgetBuilder::new(&prop, key.clone());
+                                let builder = XWidgetBuilder::new(&prop, key.clone(), cwd.clone());
 
                                 form.append(&builder.get_widget());
                             } else {
-                                let builder = DefaultWidgetBuilder::new(&prop, key.clone());
+                                let builder =
+                                    DefaultWidgetBuilder::new(&prop, key.clone(), cwd.clone());
 
                                 form.append(&builder.get_widget());
                             }
@@ -277,7 +288,8 @@ pub enum SchematicUiInput {
 
 #[derive(Debug)]
 pub enum SchematicUiOutput {
-    Params(Vec<Param>),
+    Params(Vec<Param>, bool),
+    ShowExecutor,
 }
 
 #[relm4::component(pub)]
@@ -324,6 +336,17 @@ impl Component for SchematicUiModel {
               set_label: &(model.message).to_string()
             },
           },
+          gtk::LinkButton {
+            #[watch]
+            set_visible: model.has_directives && !model.can_submit(),
+            set_halign: Align::Center,
+            set_valign: Align::Start,
+            set_label: "Please set the current working directory!",
+            connect_activate_link[sender] => move |_| -> Inhibit {
+              let _ = sender.output_sender().send(SchematicUiOutput::ShowExecutor);
+              Inhibit(true)
+            },
+          },
           gtk::ScrolledWindow {
           #[watch]
           set_visible: !model.hidden,
@@ -338,7 +361,7 @@ impl Component for SchematicUiModel {
                   set_hexpand: true,
                   set_css_classes: &["ui_container"],
                   #[track = "model.changed(SchematicUiModel::json())"]
-                  set_child: Some(&model.build_form(frame.as_ref(), &model.json).unwrap())
+                  set_child: Some(&model.build_form(frame.as_ref(), &model.json, model.cwd.clone()).unwrap())
                 },
                 gtk::Revealer {
                     set_transition_type: gtk::RevealerTransitionType::SlideLeft,
@@ -362,6 +385,8 @@ impl Component for SchematicUiModel {
                 },
                 append: submit = &gtk::Button {
                   set_label: "Submit",
+                  #[watch]
+                  set_sensitive: model.can_submit(),
                   connect_clicked[sender] => move |_| {
                     sender.input(SchematicUiInput::Submit);
                   },
@@ -457,6 +482,7 @@ impl Component for SchematicUiModel {
             save,
             config,
             browser,
+            has_directives: false,
         };
 
         let widgets = view_output!();
@@ -479,6 +505,8 @@ impl Component for SchematicUiModel {
                 ))
                 .unwrap();
                 let schema = serde_json::from_value::<Schema>(json.clone()).unwrap();
+
+                self.has_directives = schema.has_directives();
 
                 self.reset_view();
 
@@ -548,14 +576,17 @@ impl Component for SchematicUiModel {
                     .unwrap();
             }
             SchematicUiInput::CwdChanged(path) => {
+                let json = self.get_mut_json();
+                *json.get_mut("$id").unwrap() = serde_json::Value::String(path.clone());
                 self.set_cwd(path.into());
             }
             SchematicUiInput::Submit => {
                 let command = self.extract_values(widgets);
 
-                sender
-                    .output_sender()
-                    .emit(SchematicUiOutput::Params(command.to_params()));
+                sender.output_sender().emit(SchematicUiOutput::Params(
+                    command.to_params(),
+                    self.configurable.is_some(),
+                ));
             }
             SchematicUiInput::Saved(file) => {
                 let _ = self.browser.sender().send(ProfileBrowserInput::Show(
