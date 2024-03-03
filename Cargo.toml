@@ -9,7 +9,7 @@ keywords = ["schematics", "gui"]
 readme = "README.md"
 repository = "https://github.com/gtamas/schematicsgui"
 documentation = "https://github.com/gtamas/schematicsgui"
-version = "0.1.0"
+version = "0.7.0"
 edition = "2021"
 
 [package.metadata.bundle]

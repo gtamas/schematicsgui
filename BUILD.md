@@ -14,7 +14,7 @@ Finally, run build:
 
 ```bash
 cd /some/path
-cargo install
+cargo build
 cargo run
 ```
 
