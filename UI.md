@@ -46,7 +46,7 @@ Additionally, a `submit` button will be added.
 
 ##  2. <a name='Thex-widgetproperty'></a>The x-widget property
 
-If you don't like the default UI, you customize it or even override it. This requires adding the `x-widget` property to your schema properties which must be located on the same level as `x-prompt`. 
+If you don't like the default UI, you may customize it or even override it. This requires adding the `x-widget` property to your schema properties. It must be located at the same level as `x-prompt`. 
 
 Let's see an example:
 
@@ -75,7 +75,7 @@ Let's see an example:
 
 Here, the first property is `name` which does not have any customization so it will be rendered as a text input, using the default widget builder. The second `type` property, however, has `x-widget`. In this case, the type is set to `radio`, so instead of the default dropdown menu, a group of radio buttons will be generated.
 
-This is just a basic example. You can customize your inputs in many different ways via `x-widget`. Via such customizations, you can use most of the input widgets available in the [GTK4 Widget Library](https://docs.gtk.org/gtk4/visual_index.html) and even some custom one shipped with the app. More widgets will be added in the future.
+This is just a basic example. You can customize your inputs in many different ways via `x-widget`. You can use most of the input widgets available in the [GTK4 Widget Library](https://docs.gtk.org/gtk4/visual_index.html) and even some custom ones shipped with the app. More widgets will be added in the future.
 
 The general form of the `x-widget` is the following:
 
@@ -100,11 +100,11 @@ max_len | integer|| The user cannot type more than this number of characters
 height | integer || The height of the widget in pixels. Only works when multiline=true
 placeholder | string | "" |This text will appear in the widget by default and will be removed as soon as the user starts typing
 icon | string | "" | name of a icon to decorate the input with. See below
-icon_position | `start`, `end` | "end" | It's either "start" or "end", adding the icon as prefix or suffix, respectively.
-tooltip | string | "" | The text of the tooltip display on hover
+icon_position | `start`, `end` | "end" | Adds the above mentioned icon as prefix or suffix, respectively.
+tooltip | string | "" | The text of the tooltip to display on hover
 hint_text | string | "" | Short text printed below the field as help or hint.
-multiline | bool | false | If true, a textarea will be printed allowing multiple line input. 
-direction | `left`, `right` | "left" | Typing direction. Default to left to right.
+multiline | bool | false | If true, a textarea will be rendered allowing multiple line input. 
+direction | `left`, `right` | "left" | Typing direction. Defaults to left to right.
 overwrite | bool | false | If true, it's possible to overwrite text in the input
 purpose | enum | none | Describes the primary purpose of the widget. For screen readers, virtual keyboards etc. See [this page](https://docs.gtk.org/gtk4/enum.InputPurpose.html)  
 hint | enum | none | Describes how the input should be handled.  For screen readers, virtual keyboards etc. See [this page](https://docs.gtk.org/gtk4/flags.InputHints.html)
@@ -131,8 +131,8 @@ This renders input for numbers.
 type | `input`, `slider` | "input" | The type of the input widget. See below.
 value_type | `int`, `float` | "float" | The type of the expected input value.
 stepping | number | 1.0 | Increase or decrease the value by this amount when tapping arrow button or moving the slider.
-max | number | Max of type | The maximum value the input accepts. If omitted, it's the max value allowed by the OS for the given type (unsigned integer 64 bit floating point)
-min | number | Min of type | The minimum value the input accepts. If omitted, it's the min value allowed by OS for the given type (unsigned integer 64 bit floating point)
+max | number | Max of type | The maximum value the input accepts. If omitted, it's the max value allowed by the OS for the given type (unsigned integer or floating point value, 64 bit)
+min | number | Min of type | The minimum value the input accepts. If omitted, it's the min value allowed by OS for the given type (unsigned integer or floating point value, 64 bit)
 initial_value | number | 0 | The initial value of the input
 page_increment | number | 0 | Part of the number model GTK uses. See this page for details: [GTK adjustmet](https://docs.gtk.org/gtk4/class.Adjustment.html)
 page_size | number | 0 | Part of the number model GTK uses. See this page for details: [GTK adjustmet](https://docs.gtk.org/gtk4/class.Adjustment.html)
